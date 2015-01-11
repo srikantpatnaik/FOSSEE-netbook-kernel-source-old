@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/edid.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,9 +73,6 @@
 #define EDID_STRUCT_VERSION	0x12
 #define EDID_STRUCT_REVISION	0x13
 
-#define EDID_MAX_HOR_IMAGE_SIZE 0x15
-#define EDID_MAX_VER_IMAGE_SIZE 0x16
-
 /*------------------------------------------------------------------------------
   Offset 20-24: BASIC DISPLAY PARAMETERS
 ------------------------------------------------------------------------------*/
@@ -98,16 +95,11 @@
 
 #define EDID_TMR_INTERLACE	BIT(31)
 #define EDID_TMR_FREQ		0xFF
-struct edid_timing_t {
+typedef struct {
 	unsigned int resx;
 	unsigned int resy;
 	int freq;	/* EDID_TMR_XXX */
-};
-
-struct vic_3d_t {
-	char vic;
-	unsigned int mask;
-};
+} edid_timing_t;
 
 /* EDID option flag */
 #define EDID_OPT_VALID		0x01
@@ -119,50 +111,45 @@ struct vic_3d_t {
 #define EDID_OPT_3D		BIT(9)
 #define EDID_OPT_16_9		BIT(10)
 
-struct edid_info_t {
+typedef struct {
 	unsigned int establish_timing;
-	struct edid_timing_t standard_timing[8];
+	edid_timing_t standard_timing[8];
 	struct fb_videomode detail_timing[4];
 	struct fb_videomode cea_timing[6];
 	char cea_vic[8];
-	struct vic_3d_t vic_3d[16];
 	unsigned int pixel_clock_limit;
 	unsigned int option;
 	unsigned short hdmi_phy_addr;
-	int width;
-	int height;
-};
+} edid_info_t;
 
 #define VENDOR_NAME_LEN              4
 #define MONITOR_NAME_LEN             20
 #define AUD_SAD_NUM                  32
-struct sad_t {
+typedef struct {
 	char flag; /* 0: sad available, 1: sad invalid */
 	char sad_byte[3];
-};
+} sad_t;
 
-struct tv_name_t{
+typedef struct {
 	char vendor_name[VENDOR_NAME_LEN];
 	char monitor_name[MONITOR_NAME_LEN];
-};
+} tv_name_t;
 
-struct edid_parsed_t {
-        struct tv_name_t tv_name;
-	struct sad_t sad[AUD_SAD_NUM];
-};
+typedef struct {
+	tv_name_t tv_name;
+	sad_t sad[AUD_SAD_NUM];
+} edid_parsed_t;
 
-extern struct edid_info_t edid_info;
+extern edid_info_t edid_info;
 extern int edid_msg_enable;
 extern int edid_disable;
-extern struct edid_parsed_t edid_parsed;
+extern edid_parsed_t edid_parsed;
 
-extern int edid_parse(char *edid, struct edid_info_t *info);
-extern int edid_find_support(struct edid_info_t *info, unsigned int resx,
+extern int edid_parse(char *edid, edid_info_t *info);
+extern int edid_find_support(edid_info_t *info, unsigned int resx,
 	unsigned int resy, int freq, struct fb_videomode **vmode);
 extern void edid_dump(char *edid);
 extern int edid_checksum(char *edid, int len);
 extern unsigned int edid_get_hdmi_phy_addr(void);
-extern unsigned int edid_get_hdmi_3d_mask(struct edid_info_t *info,
-	int vic);
 
 #endif

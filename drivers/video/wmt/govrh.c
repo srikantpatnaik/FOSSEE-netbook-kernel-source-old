@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/govrh.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,11 +29,11 @@
 #include "govrh.h"
 
 #ifdef WMT_FTBLK_GOVRH
-void govrh_reg_dump(struct vpp_mod_base_t *base)
+void govrh_reg_dump(vpp_mod_base_t *base)
 {
-	struct govrh_mod_t *p_govr = (struct govrh_mod_t *) base;
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	govrh_mod_t *p_govr = (govrh_mod_t *) base;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	int igs_mode[4] = {888, 555, 666, 565};
 
 	DPRINT("========== GOVRH register dump ==========\n");
@@ -116,19 +116,29 @@ void govrh_reg_dump(struct vpp_mod_base_t *base)
 }
 
 
-void govrh_set_tg_enable(struct govrh_mod_t *base, vpp_flag_t enable)
+void govrh_set_tg_enable(govrh_mod_t *base, vpp_flag_t enable)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n", (base->mod == VPP_MOD_GOVRH) ?
 				1 : 2, enable);
 
-	regs->tg_enable.b.enable = enable;
+	switch (enable) {
+	case VPP_FLAG_ENABLE:
+		regs->tg_enable.b.enable = enable;
+		break;
+	case VPP_FLAG_DISABLE:
+		if (regs->tg_enable.b.enable)
+			regs->tg_enable.b.enable = enable;
+		break;
+	default:
+		break;
+	}
+	return;
 }
 
-unsigned int govrh_set_clock(struct govrh_mod_t *base,
-	unsigned int pixel_clock)
+unsigned int govrh_set_clock(govrh_mod_t *base, unsigned int pixel_clock)
 {
 	int pmc_clk = 0;
 
@@ -147,10 +157,10 @@ unsigned int govrh_set_clock(struct govrh_mod_t *base,
 	return 0;
 }
 
-void govrh_set_tg1(struct govrh_mod_t *base, vpp_clock_t *timing)
+void govrh_set_tg1(govrh_mod_t *base, vpp_clock_t *timing)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -179,20 +189,20 @@ void govrh_set_tg1(struct govrh_mod_t *base, vpp_clock_t *timing)
 #endif
 }
 
-int govrh_get_tg_mode(struct govrh_mod_t *base)
+int govrh_get_tg_mode(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
 	return regs->tg_enable.b.mode;
 }
 
-void govrh_set_tg2(struct govrh_mod_t *base, vpp_clock_t *timing)
+void govrh_set_tg2(govrh_mod_t *base, vpp_clock_t *timing)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -219,10 +229,10 @@ void govrh_set_tg2(struct govrh_mod_t *base, vpp_clock_t *timing)
 #endif
 }
 
-void govrh_get_tg(struct govrh_mod_t *base, vpp_clock_t *tmr)
+void govrh_get_tg(govrh_mod_t *base, vpp_clock_t *tmr)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -249,10 +259,10 @@ void govrh_get_tg(struct govrh_mod_t *base, vpp_clock_t *tmr)
 	}
 }
 
-int govrh_get_hscale_up(struct govrh_mod_t *base)
+int govrh_get_hscale_up(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	int reg;
 
 	reg = regs->hscale_up & 0x1;
@@ -261,10 +271,10 @@ int govrh_get_hscale_up(struct govrh_mod_t *base)
 	return reg;
 }
 
-void govrh_set_direct_path(struct govrh_mod_t *base, int enable)
+void govrh_set_direct_path(govrh_mod_t *base, int enable)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n", (base->mod == VPP_MOD_GOVRH) ?
 		1 : 2, enable);
@@ -272,11 +282,11 @@ void govrh_set_direct_path(struct govrh_mod_t *base, int enable)
 	regs->dirpath = enable;
 }
 
-enum vpp_int_err_t govrh_get_int_status(struct govrh_mod_t *base)
+vpp_int_err_t govrh_get_int_status(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
-	enum vpp_int_err_t int_sts;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
+	vpp_int_err_t int_sts;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -286,11 +296,10 @@ enum vpp_int_err_t govrh_get_int_status(struct govrh_mod_t *base)
 	return int_sts;
 }
 
-void govrh_clean_int_status(struct govrh_mod_t *base,
-	enum vpp_int_err_t int_sts)
+void govrh_clean_int_status(govrh_mod_t *base, vpp_int_err_t int_sts)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	unsigned int val;
 
 	DBG_DETAIL("(govr %d,%d)\n", (base->mod == VPP_MOD_GOVRH) ?
@@ -303,11 +312,11 @@ void govrh_clean_int_status(struct govrh_mod_t *base,
 	}
 }
 
-void govrh_set_int_enable(struct govrh_mod_t *base,
-			vpp_flag_t enable, enum vpp_int_err_t int_bit)
+void govrh_set_int_enable(govrh_mod_t *base,
+			vpp_flag_t enable, vpp_int_err_t int_bit)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n", (base->mod == VPP_MOD_GOVRH) ?
 				1 : 2, enable);
@@ -319,44 +328,39 @@ void govrh_set_int_enable(struct govrh_mod_t *base,
 		regs->interrupt.b.mem_enable = enable;
 }
 
-int govrh_get_dvo_enable(struct govrh_mod_t *base)
+void govrh_set_dvo_enable(govrh_mod_t *base, vpp_flag_t enable)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
-	return regs->dvo_set.b.enable;
-}
-
-void govrh_set_dvo_enable(struct govrh_mod_t *base, vpp_flag_t enable)
-{
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 /*	DPRINT("[GOVRH] %s(%d)\n",__FUNCTION__,enable); */
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, enable);
 
 	regs->dvo_set.b.enable = enable;
+#if 1
 	if (enable) {
 		/* GPIO to function pin */
-		outl(0x0, GPIO_BASE_ADDR + 0x44);
+		vppif_reg32_out(GPIO_BASE_ADDR + 0x44, 0x0);
 		/* GPIO pull disable */
-		outl(0x0, GPIO_BASE_ADDR + 0x484);
+		vppif_reg32_out(GPIO_BASE_ADDR + 0x484, 0x0);
 		/* 1:pullup,0:pulldn */
-		outl(0x0, GPIO_BASE_ADDR + 0x4C4);
+		vppif_reg32_out(GPIO_BASE_ADDR + 0x4C4, 0x0);
 		return;
 	}
 	/* disable dvo */
-	outl(0xFFFFFFFF, GPIO_BASE_ADDR + 0x44); /* Enable GPIO */
-	outl(0x0, GPIO_BASE_ADDR + 0x84);  /* GPIO output enable */
-	outl(0x0, GPIO_BASE_ADDR + 0x484); /* GPIO pull disable */
-	outl(0x0, GPIO_BASE_ADDR + 0x4C4); /* 1:pullup,0:pulldn */
+	vppif_reg32_out(GPIO_BASE_ADDR + 0x44, 0xFFFFFFFF); /* Enable GPIO */
+	vppif_reg32_out(GPIO_BASE_ADDR + 0x84, 0x0);  /* GPIO output enable */
+	vppif_reg32_out(GPIO_BASE_ADDR + 0x484, 0x0); /* GPIO pull disable */
+	vppif_reg32_out(GPIO_BASE_ADDR + 0x4C4, 0x0); /* 1:pullup,0:pulldn */
+#endif
 }
 
-void govrh_set_dvo_sync_polar(struct govrh_mod_t *base,
+void govrh_set_dvo_sync_polar(govrh_mod_t *base,
 					vpp_flag_t hsync, vpp_flag_t vsync)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, hsync, vsync);
@@ -365,10 +369,10 @@ void govrh_set_dvo_sync_polar(struct govrh_mod_t *base,
 	regs->dvo_set.b.vsync_polar = vsync;
 }
 
-vdo_color_fmt govrh_get_dvo_color_format(struct govrh_mod_t *base)
+vdo_color_fmt govrh_get_dvo_color_format(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -379,11 +383,10 @@ vdo_color_fmt govrh_get_dvo_color_format(struct govrh_mod_t *base)
 	return VDO_COL_FMT_YUV444;
 }
 
-void govrh_set_dvo_color_format(struct govrh_mod_t *base,
-	vdo_color_fmt fmt)
+void govrh_set_dvo_color_format(govrh_mod_t *base, vdo_color_fmt fmt)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%s)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, vpp_colfmt_str[fmt]);
@@ -405,11 +408,10 @@ void govrh_set_dvo_color_format(struct govrh_mod_t *base,
 	}
 }
 
-void govrh_set_dvo_outdatw(struct govrh_mod_t *base,
-	vpp_datawidht_t width)
+void govrh_set_dvo_outdatw(govrh_mod_t *base, vpp_datawidht_t width)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	unsigned int clk_delay;
 
 	DBG_DETAIL("(govr %d,%d)\n",
@@ -423,11 +425,11 @@ void govrh_set_dvo_outdatw(struct govrh_mod_t *base,
 		clk_delay & 0x3FFF);
 }
 
-void govrh_set_dvo_clock_delay(struct govrh_mod_t *base,
+void govrh_set_dvo_clock_delay(govrh_mod_t *base,
 					int inverse, int delay)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d,%d)\n", (base->mod == VPP_MOD_GOVRH) ?
 		1 : 2, inverse, delay);
@@ -440,11 +442,11 @@ void govrh_set_dvo_clock_delay(struct govrh_mod_t *base,
 	regs->dvo_dly_sel.b.delay = delay;
 }
 
-void govrh_set_colorbar(struct govrh_mod_t *base,
+void govrh_set_colorbar(govrh_mod_t *base,
 				vpp_flag_t enable, int mode, int inv)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, enable);
@@ -454,10 +456,10 @@ void govrh_set_colorbar(struct govrh_mod_t *base,
 	regs->cb_enable.b.inversion = inv;
 }
 
-void govrh_set_contrast(struct govrh_mod_t *base, unsigned int value)
+void govrh_set_contrast(govrh_mod_t *base, unsigned int value)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,0x%x)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, value);
@@ -465,20 +467,20 @@ void govrh_set_contrast(struct govrh_mod_t *base, unsigned int value)
 	regs->contrast.val = value;
 }
 
-unsigned int govrh_get_contrast(struct govrh_mod_t *base)
+unsigned int govrh_get_contrast(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
 	return regs->contrast.val;
 }
 
-void govrh_set_brightness(struct govrh_mod_t *base, unsigned int value)
+void govrh_set_brightness(govrh_mod_t *base, unsigned int value)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,0x%x)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, value);
@@ -486,20 +488,20 @@ void govrh_set_brightness(struct govrh_mod_t *base, unsigned int value)
 	regs->brightness = value;
 }
 
-unsigned int govrh_get_brightness(struct govrh_mod_t *base)
+unsigned int govrh_get_brightness(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
 	return regs->brightness;
 }
 
-void govrh_set_saturation(struct govrh_mod_t *base, unsigned int value)
+void govrh_set_saturation(govrh_mod_t *base, unsigned int value)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,0x%x)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, value);
@@ -508,20 +510,20 @@ void govrh_set_saturation(struct govrh_mod_t *base, unsigned int value)
 	regs->saturation_enable.b.enable = 1;
 }
 
-unsigned int govrh_get_saturation(struct govrh_mod_t *base)
+unsigned int govrh_get_saturation(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
 	return regs->saturation.val;
 }
 
-void govrh_set_MIF_enable(struct govrh_mod_t *base, vpp_flag_t enable)
+void govrh_set_MIF_enable(govrh_mod_t *base, vpp_flag_t enable)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, enable);
@@ -529,21 +531,21 @@ void govrh_set_MIF_enable(struct govrh_mod_t *base, vpp_flag_t enable)
 	regs->mif.b.enable = enable;
 }
 
-int govrh_get_MIF_enable(struct govrh_mod_t *base)
+int govrh_get_MIF_enable(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
 	return regs->mif.b.enable;
 }
 
-void govrh_set_frame_mode(struct govrh_mod_t *base,
+void govrh_set_frame_mode(govrh_mod_t *base,
 				unsigned int width, vdo_color_fmt colfmt)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	int y_byte, c_byte;
 	int enable;
 
@@ -559,7 +561,7 @@ void govrh_set_frame_mode(struct govrh_mod_t *base,
 	}
 	if (regs->bufwid % 128)
 		enable = 0;
-	if (width == 720)
+	if ((width == 720) && (colfmt == VDO_COL_FMT_RGB_565))
 		enable = 0;
 	regs->mif_frame_mode.b.frame_enable = enable;
 	regs->mif_frame_mode.b.req_num =
@@ -568,11 +570,10 @@ void govrh_set_frame_mode(struct govrh_mod_t *base,
 		(c_byte) ? ((c_byte / 128) + ((c_byte % 128) ? 1 : 0)) : 0;
 }
 
-void govrh_set_color_format(struct govrh_mod_t *base,
-	vdo_color_fmt format)
+void govrh_set_color_format(govrh_mod_t *base, vdo_color_fmt format)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%s)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, vpp_colfmt_str[format]);
@@ -607,16 +608,16 @@ void govrh_set_color_format(struct govrh_mod_t *base,
 		return;
 	}
 #ifdef WMT_FTBLK_GOVRH_CURSOR
-	govrh_CUR_set_colfmt((struct govrh_cursor_mod_t *)p_cursor, format);
+	govrh_CUR_set_colfmt((govrh_cursor_mod_t *)p_cursor, format);
 #endif
 	govrh_set_frame_mode(base, regs->pixwid, format);
 	regs->saturation_enable.b.format = (regs->yuv2rgb.b.rgb_mode) ? 1 : 0;
 }
 
-vdo_color_fmt govrh_get_color_format(struct govrh_mod_t *base)
+vdo_color_fmt govrh_get_color_format(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -637,11 +638,11 @@ vdo_color_fmt govrh_get_color_format(struct govrh_mod_t *base)
 	return VDO_COL_FMT_YUV422H;
 }
 
-void govrh_set_source_format(struct govrh_mod_t *base,
+void govrh_set_source_format(govrh_mod_t *base,
 					vpp_display_format_t format)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, format);
@@ -649,11 +650,11 @@ void govrh_set_source_format(struct govrh_mod_t *base,
 	regs->srcfmt = (format == VPP_DISP_FMT_FIELD) ? 1 : 0;
 }
 
-void govrh_set_output_format(struct govrh_mod_t *base,
+void govrh_set_output_format(govrh_mod_t *base,
 					vpp_display_format_t field)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, field);
@@ -661,11 +662,11 @@ void govrh_set_output_format(struct govrh_mod_t *base,
 	regs->dstfmt = (field == VPP_DISP_FMT_FIELD) ? 1 : 0;
 }
 
-void govrh_set_fb_addr(struct govrh_mod_t *base,
+void govrh_set_fb_addr(govrh_mod_t *base,
 			unsigned int y_addr, unsigned int c_addr)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	/* DBG_DETAIL("(govr %d,0x%x,0x%x)\n",
 		(base->mod == VPP_MOD_GOVRH)? 1:2,y_addr,c_addr); */
@@ -678,11 +679,11 @@ void govrh_set_fb_addr(struct govrh_mod_t *base,
 	regs->csa = c_addr;
 }
 
-void govrh_get_fb_addr(struct govrh_mod_t *base,
+void govrh_get_fb_addr(govrh_mod_t *base,
 				unsigned int *y_addr, unsigned int *c_addr)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	*y_addr = regs->ysa;
 	*c_addr = regs->csa;
@@ -691,11 +692,11 @@ void govrh_get_fb_addr(struct govrh_mod_t *base,
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, *y_addr, *c_addr);
 }
 
-void govrh_set_fb2_addr(struct govrh_mod_t *base,
+void govrh_set_fb2_addr(govrh_mod_t *base,
 			unsigned int y_addr, unsigned int c_addr)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,0x%x,0x%x)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, y_addr, c_addr);
@@ -708,11 +709,11 @@ void govrh_set_fb2_addr(struct govrh_mod_t *base,
 	regs->csa2 = c_addr;
 }
 
-void govrh_get_fb2_addr(struct govrh_mod_t *base,
+void govrh_get_fb2_addr(govrh_mod_t *base,
 			unsigned int *y_addr, unsigned int *c_addr)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+			(volatile struct govrh_regs *) base->mmio;
 
 	*y_addr = regs->ysa2;
 	*c_addr = regs->csa2;
@@ -721,10 +722,10 @@ void govrh_get_fb2_addr(struct govrh_mod_t *base,
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, *y_addr, *c_addr);
 }
 
-void govrh_set_fb_width(struct govrh_mod_t *base, unsigned int width)
+void govrh_set_fb_width(govrh_mod_t *base, unsigned int width)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, width);
@@ -733,11 +734,11 @@ void govrh_set_fb_width(struct govrh_mod_t *base, unsigned int width)
 }
 
 #define GOVRH_CURSOR_RIGHT_POS		6
-void govrh_set_fb_info(struct govrh_mod_t *base, unsigned int width,
+void govrh_set_fb_info(govrh_mod_t *base, unsigned int width,
 	unsigned int act_width, unsigned int x_offset, unsigned int y_offset)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,fb_w %d,img_w %d,x %d,y %d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2,
@@ -767,11 +768,11 @@ void govrh_set_fb_info(struct govrh_mod_t *base, unsigned int width,
 #endif
 }
 
-void govrh_get_fb_info(struct govrh_mod_t *base, unsigned int *width,
+void govrh_get_fb_info(govrh_mod_t *base, unsigned int *width,
 	unsigned int *act_width, unsigned int *x_offset, unsigned int *y_offset)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -781,10 +782,10 @@ void govrh_get_fb_info(struct govrh_mod_t *base, unsigned int *width,
 	*y_offset = regs->vcrop;
 }
 
-void govrh_set_fifo_index(struct govrh_mod_t *base, unsigned int index)
+void govrh_set_fifo_index(govrh_mod_t *base, unsigned int index)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, index);
@@ -792,10 +793,10 @@ void govrh_set_fifo_index(struct govrh_mod_t *base, unsigned int index)
 	regs->fhi = index;
 }
 
-void govrh_set_reg_level(struct govrh_mod_t *base, vpp_reglevel_t level)
+void govrh_set_reg_level(govrh_mod_t *base, vpp_reglevel_t level)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, level);
@@ -803,10 +804,10 @@ void govrh_set_reg_level(struct govrh_mod_t *base, vpp_reglevel_t level)
 	regs->sts.b.level = (level == VPP_REG_LEVEL_1) ? 0 : 1;
 }
 
-void govrh_set_reg_update(struct govrh_mod_t *base, vpp_flag_t enable)
+void govrh_set_reg_update(govrh_mod_t *base, vpp_flag_t enable)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, enable);
@@ -814,11 +815,11 @@ void govrh_set_reg_update(struct govrh_mod_t *base, vpp_flag_t enable)
 	regs->sts.b.update = enable;
 }
 
-void govrh_set_tg(struct govrh_mod_t *base,
+void govrh_set_tg(govrh_mod_t *base,
 			vpp_clock_t *tmr, unsigned int pixel_clock)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	int tg_enable;
 
 	DBG_DETAIL("(govr %d,%d)\n",
@@ -833,12 +834,13 @@ void govrh_set_tg(struct govrh_mod_t *base,
 	regs->tg_enable.b.enable = tg_enable;
 }
 
-void govrh_set_csc_mode(struct govrh_mod_t *base, vpp_csc_t mode)
+void govrh_set_csc_mode(govrh_mod_t *base, vpp_csc_t mode)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	vdo_color_fmt src_fmt, dst_fmt;
 	unsigned int enable;
+	unsigned int csc_parm5;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, mode);
@@ -878,10 +880,11 @@ void govrh_set_csc_mode(struct govrh_mod_t *base, vpp_csc_t mode)
 	if (mode >= VPP_CSC_MAX) {
 		enable = 0;
 		/* for internal color bar (YUV base) */
-		mode = base->fb_p->csc_mode;
+		mode = VPP_CSC_YUV2RGB_JFIF_0_255;
 	}
-
-	mode = (base->csc_mode_force) ? base->csc_mode_force : mode;
+	/* HDMI YUV mode too light 0xff00ff -> 0x01010001 */
+	csc_parm5 = (mode == VPP_CSC_RGB2YUV_JFIF_0_255) ?
+			0x01010001 : vpp_csc_parm[mode][5];
 
 	regs->dmacsc_coef0 = vpp_csc_parm[mode][0]; /* C1,C2 */
 	regs->dmacsc_coef1 = vpp_csc_parm[mode][1]; /* C3,C4 */
@@ -889,16 +892,14 @@ void govrh_set_csc_mode(struct govrh_mod_t *base, vpp_csc_t mode)
 	regs->dmacsc_coef3 = vpp_csc_parm[mode][3]; /* C7,C8 */
 	regs->dmacsc_coef4 = vpp_csc_parm[mode][4] & 0xFFFF; /* C9 */
 	regs->dmacsc_coef5 = ((vpp_csc_parm[mode][4] & 0xFFFF0000) >> 16) +
-			((vpp_csc_parm[mode][5] & 0xFFFF) << 16); /* I,J */
-	regs->dmacsc_coef6 = (vpp_csc_parm[mode][5] & 0xFFFF0000) >> 16; /* K */
+				((csc_parm5 & 0xFFFF) << 16); /* I,J */
+	regs->dmacsc_coef6 = (csc_parm5 & 0xFFFF0000) >> 16;    /* K */
 	regs->csc_mode.val = (vpp_csc_parm[mode][6] & BIT0) +
 			((vpp_csc_parm[mode][6] & BIT8) ? BIT1 : 0x0);
 
 	/* enable bit0:DVO, bit1:VGA, bit2:DISP, bit3:LVDS, bit4:HDMI */
-	regs->yuv2rgb.b.blank_zero = 1;
-	regs->yuv2rgb.b.dac_clkinv = 1;
-	regs->yuv2rgb.b.reserved1 =
-		(mode >= VPP_CSC_RGB2YUV_SDTV_0_255) ? 1 : 0;
+	regs->yuv2rgb.val = (regs->yuv2rgb.val & ~0xFF) +
+			((mode >= VPP_CSC_RGB2YUV_SDTV_0_255) ? 0x1C : 0x18);
 	regs->yuv2rgb.b.dvo = (enable & BIT0) ? 1 : 0;
 #ifdef WMT_FTBLK_LVDS
 	regs->yuv2rgb.b.lvds = (enable & BIT3) ? 1 : 0;
@@ -908,10 +909,10 @@ void govrh_set_csc_mode(struct govrh_mod_t *base, vpp_csc_t mode)
 #endif
 }
 
-void govrh_set_media_format(struct govrh_mod_t *base, vpp_flag_t h264)
+void govrh_set_media_format(govrh_mod_t *base, vpp_flag_t h264)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, h264);
@@ -919,21 +920,20 @@ void govrh_set_media_format(struct govrh_mod_t *base, vpp_flag_t h264)
 	regs->mif.b.h264 = h264;
 }
 
-void govrh_HDMI_set_blank_value(struct govrh_mod_t *base,
-	unsigned int val)
+void govrh_HDMI_set_blank_value(govrh_mod_t *base, unsigned int val)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2, val);
 
 	regs->hdmi_3d.b.blank_value = val;
 }
 
-void govrh_HDMI_set_3D_mode(struct govrh_mod_t *base, int mode)
+void govrh_HDMI_set_3D_mode(govrh_mod_t *base, int mode)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, mode);
@@ -942,10 +942,10 @@ void govrh_HDMI_set_3D_mode(struct govrh_mod_t *base, int mode)
 	regs->hdmi_3d.b.mode = mode;
 }
 
-int govrh_is_top_field(struct govrh_mod_t *base)
+int govrh_is_top_field(govrh_mod_t *base)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -953,11 +953,11 @@ int govrh_is_top_field(struct govrh_mod_t *base)
 }
 
 /*----------------------- GOVRH IGS --------------------------------------*/
-void govrh_IGS_set_mode(struct govrh_mod_t *base,
+void govrh_IGS_set_mode(govrh_mod_t *base,
 				int no, int mode_18bit, int msb)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2, no);
 
@@ -972,10 +972,10 @@ void govrh_IGS_set_mode(struct govrh_mod_t *base,
 	}
 }
 
-void govrh_IGS_set_RGB_swap(struct govrh_mod_t *base, int mode)
+void govrh_IGS_set_RGB_swap(govrh_mod_t *base, int mode)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 
 	DBG_DETAIL("(govr %d,%d)\n",
 		(base->mod == VPP_MOD_GOVRH) ? 1 : 2, mode);
@@ -987,42 +987,41 @@ void govrh_IGS_set_RGB_swap(struct govrh_mod_t *base, int mode)
 /*----------------------- GOVRH CURSOR --------------------------------------*/
 #ifdef WMT_FTBLK_GOVRH_CURSOR
 #define CONFIG_GOVR2_CURSOR
-void *govrh_CUR_get_mmio(struct govrh_cursor_mod_t *base)
+void *govrh_CUR_get_mmio(govrh_cursor_mod_t *base)
 {
 #ifdef CONFIG_GOVR2_CURSOR
-	base = (struct govrh_cursor_mod_t *)
+	base = (govrh_cursor_mod_t *)
 		((govrh_get_MIF_enable(p_govrh)) ? p_govrh : p_govrh2);
 #endif
 	return base->mmio;
 }
 
-void govrh_CUR_set_enable(struct govrh_cursor_mod_t *base,
-	vpp_flag_t enable)
+void govrh_CUR_set_enable(govrh_cursor_mod_t *base, vpp_flag_t enable)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	DBG_DETAIL("(0x%x,%d)\n", base->mmio, enable);
 
 	regs->cur_status.b.enable = enable;
 }
 
-void govrh_CUR_set_fb_addr(struct govrh_cursor_mod_t *base,
+void govrh_CUR_set_fb_addr(govrh_cursor_mod_t *base,
 				unsigned int y_addr, unsigned int c_addr)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	DBG_DETAIL("(0x%x,0x%x,0x%x)\n", base->mmio, y_addr, c_addr);
 
 	regs->cur_addr = y_addr;
 }
 
-void govrh_CUR_get_fb_addr(struct govrh_cursor_mod_t *base,
+void govrh_CUR_get_fb_addr(govrh_cursor_mod_t *base,
 			unsigned int *y_addr, unsigned int *c_addr)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	*y_addr = regs->cur_addr;
 	*c_addr = 0;
@@ -1030,11 +1029,11 @@ void govrh_CUR_get_fb_addr(struct govrh_cursor_mod_t *base,
 	DBG_DETAIL("(0x%x,0x%x,0x%x)\n", base->mmio, *y_addr, *c_addr);
 }
 
-void govrh_CUR_set_coordinate(struct govrh_cursor_mod_t *base,
+void govrh_CUR_set_coordinate(govrh_cursor_mod_t *base,
 	unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	DBG_DETAIL("(0x%x)\n", base->mmio);
 
@@ -1044,11 +1043,11 @@ void govrh_CUR_set_coordinate(struct govrh_cursor_mod_t *base,
 	regs->cur_vcoord.b.end = y2;
 }
 
-void govrh_CUR_set_position(struct govrh_cursor_mod_t *base,
+void govrh_CUR_set_position(govrh_cursor_mod_t *base,
 					unsigned int x, unsigned int y)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 	unsigned int w, h;
 
 	DBG_DETAIL("(0x%x,%d,%d)\n", base->mmio, x, y);
@@ -1059,7 +1058,7 @@ void govrh_CUR_set_position(struct govrh_cursor_mod_t *base,
 	govrh_CUR_set_coordinate(base, x, y, x+w, y+h);
 }
 
-void govrh_CUR_set_color_key_mode(struct govrh_cursor_mod_t *base,
+void govrh_CUR_set_color_key_mode(govrh_cursor_mod_t *base,
 					int enable, int alpha, int mode)
 {
 	/*
@@ -1069,8 +1068,8 @@ void govrh_CUR_set_color_key_mode(struct govrh_cursor_mod_t *base,
 		if( (alpha_en) or (colkey_hit) or (alpha value) )
 			show pixel
 	*/
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	DBG_DETAIL("(0x%x,%d,%d,%d)\n", base->mmio, enable, alpha, mode);
 
@@ -1079,11 +1078,11 @@ void govrh_CUR_set_color_key_mode(struct govrh_cursor_mod_t *base,
 	regs->cur_color_key.b.invert = mode;
 }
 
-void govrh_CUR_set_color_key(struct govrh_cursor_mod_t *base,
+void govrh_CUR_set_color_key(govrh_cursor_mod_t *base,
 				int enable, int alpha, unsigned int colkey)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	DBG_DETAIL("(0x%x,0x%x)\n", base->mmio, colkey);
 
@@ -1122,12 +1121,12 @@ void govrh_CUR_set_color_key(struct govrh_cursor_mod_t *base,
 #endif
 }
 
-void govrh_CUR_set_colfmt(struct govrh_cursor_mod_t *base,
+void govrh_CUR_set_colfmt(govrh_cursor_mod_t *base,
 					vdo_color_fmt colfmt)
 {
 #ifdef __KERNEL__
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 #endif
 
 	DBG_DETAIL("(0x%x,%s)\n", base->mmio, vpp_colfmt_str[colfmt]);
@@ -1147,9 +1146,9 @@ void govrh_CUR_set_colfmt(struct govrh_cursor_mod_t *base,
 
 int govrh_irqproc_set_position(void *arg)
 {
-	struct govrh_cursor_mod_t *base = (struct govrh_cursor_mod_t *) arg;
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	govrh_cursor_mod_t *base = (govrh_cursor_mod_t *) arg;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	int begin;
 	int pos_x, pos_y;
@@ -1232,7 +1231,7 @@ void govrh_CUR_irqproc(int arg)
 	}
 }
 
-void govrh_CUR_proc_view(struct govrh_cursor_mod_t *base,
+void govrh_CUR_proc_view(govrh_cursor_mod_t *base,
 					int read, vdo_view_t *view)
 {
 	vdo_framebuf_t *fb;
@@ -1258,11 +1257,11 @@ void govrh_CUR_proc_view(struct govrh_cursor_mod_t *base,
 	}
 }
 
-void govrh_CUR_set_framebuffer(struct govrh_cursor_mod_t *base,
+void govrh_CUR_set_framebuffer(govrh_cursor_mod_t *base,
 					vdo_framebuf_t *fb)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) govrh_CUR_get_mmio(base);
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) govrh_CUR_get_mmio(base);
 
 	DBG_DETAIL("(0x%x)\n", base->mmio);
 
@@ -1288,18 +1287,18 @@ void govrh_CUR_set_framebuffer(struct govrh_cursor_mod_t *base,
 void govrh_CUR_init(void *base)
 {
 #ifdef CONFIG_GOVR2_CURSOR
-	HW_REG struct govrh_regs *regs;
+	volatile struct govrh_regs *regs;
 
-	regs = (HW_REG struct govrh_regs *) p_govrh->mmio;
+	regs = (volatile struct govrh_regs *) p_govrh->mmio;
 	regs->cur_color_key.b.invert = 1;
-	regs = (HW_REG struct govrh_regs *) p_govrh2->mmio;
+	regs = (volatile struct govrh_regs *) p_govrh2->mmio;
 	regs->cur_color_key.b.invert = 1;
 #else
-	struct govrh_cursor_mod_t *mod_p;
-	HW_REG struct govrh_regs *regs;
+	govrh_cursor_mod_t *mod_p;
+	volatile struct govrh_regs *regs;
 
-	mod_p = (struct govrh_cursor_mod_t *) base;
-	regs = (HW_REG struct govrh_regs *) mod_p->mmio;
+	mod_p = (govrh_cursor_mod_t *) base;
+	regs = (volatile struct govrh_regs *) mod_p->mmio;
 
 	regs->cur_color_key.b.invert = 1;
 #endif
@@ -1329,11 +1328,11 @@ void govrh_vmode_to_timing(vpp_mod_t mod,
 	t->read_cycle = vpp_get_base_clock(mod) / pixel_clock;
 }
 
-void govrh_set_videomode(struct govrh_mod_t *base,
+void govrh_set_videomode(govrh_mod_t *base,
 					struct fb_videomode *p_vmode)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs =
+		(volatile struct govrh_regs *) base->mmio;
 	struct fb_videomode vmode;
 	vpp_clock_t t1;
 	int tg_enable;
@@ -1387,11 +1386,10 @@ void govrh_set_videomode(struct govrh_mod_t *base,
 	regs->tg_enable.b.enable = tg_enable;
 }
 
-void govrh_get_videomode(struct govrh_mod_t *base,
-	struct fb_videomode *vmode)
+void govrh_get_videomode(govrh_mod_t *base, struct fb_videomode *vmode)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs
+		= (volatile struct govrh_regs *) base->mmio;
 	vpp_clock_t t;
 	int htotal, vtotal;
 	unsigned int pixel_clock;
@@ -1423,18 +1421,14 @@ void govrh_get_videomode(struct govrh_mod_t *base,
 	if (vmode->vmode & FB_VMODE_DOUBLE)
 		vtotal *= 2;
 
-	if (htotal && vtotal) {
-		unsigned int temp;
-		temp = (pixel_clock * 10)/(htotal * vtotal);
-		vmode->refresh = temp / 10;
-		if ((temp % 10) >= 5)
-			vmode->refresh += 1;
-	} else
+	if (htotal && vtotal)
+		vmode->refresh = pixel_clock/(htotal * vtotal);
+	else
 		vmode->refresh = 60;
 
 	{ /* get sync polar */
 		int hsync_hi, vsync_hi;
-		enum vout_inf_mode_t interface;
+		vout_inf_mode_t interface;
 
 		switch (base->mod) {
 		case VPP_MOD_GOVRH:
@@ -1473,7 +1467,7 @@ void govrh_get_videomode(struct govrh_mod_t *base,
 	}
 }
 
-void govrh_set_framebuffer(struct govrh_mod_t *base, vdo_framebuf_t *fb)
+void govrh_set_framebuffer(govrh_mod_t *base, vdo_framebuf_t *fb)
 {
 	DBG_DETAIL("(govr %d)\n", (base->mod == VPP_MOD_GOVRH) ? 1 : 2);
 
@@ -1484,10 +1478,10 @@ void govrh_set_framebuffer(struct govrh_mod_t *base, vdo_framebuf_t *fb)
 	govrh_set_csc_mode(base, base->fb_p->csc_mode);
 }
 
-void govrh_get_framebuffer(struct govrh_mod_t *base, vdo_framebuf_t *fb)
+void govrh_get_framebuffer(govrh_mod_t *base, vdo_framebuf_t *fb)
 {
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs
+		= (volatile struct govrh_regs *) base->mmio;
 	vpp_clock_t clock;
 	int y_bpp, c_bpp;
 
@@ -1509,11 +1503,11 @@ void govrh_get_framebuffer(struct govrh_mod_t *base, vdo_framebuf_t *fb)
 
 /*----------------------- GOVRH MODULE API -----------------------------*/
 int govrh_suspend_yaddr;
-void govrh_suspend(struct govrh_mod_t *base, int sts)
+void govrh_suspend(govrh_mod_t *base, int sts)
 {
 #ifdef CONFIG_PM
-	HW_REG struct govrh_regs *regs =
-		(HW_REG struct govrh_regs *) base->mmio;
+	volatile struct govrh_regs *regs
+			= (volatile struct govrh_regs *) base->mmio;
 
 	switch (sts) {
 	case 0:	/* disable module */
@@ -1537,9 +1531,12 @@ void govrh_suspend(struct govrh_mod_t *base, int sts)
 #endif
 }
 
-void govrh_resume(struct govrh_mod_t *base, int sts)
+void govrh_resume(govrh_mod_t *base, int sts)
 {
 #ifdef CONFIG_PM
+/*	volatile struct govrh_regs *regs
+			= (volatile struct govrh_regs *) base->mmio; */
+
 	switch (sts) {
 	case 0:	/* restore register */
 		govrh_set_clock(base, base->vo_clock);
@@ -1564,11 +1561,11 @@ void govrh_resume(struct govrh_mod_t *base, int sts)
 
 void govrh_init(void *base)
 {
-	struct govrh_mod_t *mod_p;
-	HW_REG struct govrh_regs *regs;
+	govrh_mod_t *mod_p;
+	volatile struct govrh_regs *regs;
 
-	mod_p = (struct govrh_mod_t *) base;
-	regs = (HW_REG struct govrh_regs *) mod_p->mmio;
+	mod_p = (govrh_mod_t *) base;
+	regs = (volatile struct govrh_regs *) mod_p->mmio;
 
 	govrh_set_reg_level(base, VPP_REG_LEVEL_1);
 	govrh_set_colorbar(base, VPP_FLAG_DISABLE, 1, 0);
@@ -1757,13 +1754,12 @@ void govrh2_mod_set_color_fmt(vdo_color_fmt colfmt)
 #endif
 int govrh_mod_init(void)
 {
-	struct govrh_mod_t *mod_p;
-	struct vpp_fb_base_t *mod_fb_p;
+	govrh_mod_t *mod_p;
+	vpp_fb_base_t *mod_fb_p;
 	vdo_framebuf_t *fb_p;
 
-	mod_p = (struct govrh_mod_t *) vpp_mod_register(VPP_MOD_GOVRH,
-				sizeof(struct govrh_mod_t),
-				VPP_MOD_FLAG_FRAMEBUF);
+	mod_p = (govrh_mod_t *) vpp_mod_register(VPP_MOD_GOVRH,
+				sizeof(govrh_mod_t), VPP_MOD_FLAG_FRAMEBUF);
 	if (!mod_p) {
 		DPRINT("*E* GOVRH module register fail\n");
 		return -1;
@@ -1787,7 +1783,7 @@ int govrh_mod_init(void)
 
 	/* module frame buffer */
 	mod_fb_p = mod_p->fb_p;
-	mod_fb_p->csc_mode = VPP_CSC_RGB2YUV_JFIF_0_255;
+	mod_fb_p->csc_mode = VPP_CSC_RGB2YUV_SDTV_0_255;
 	mod_fb_p->framerate = VPP_HD_DISP_FPS;
 	mod_fb_p->media_fmt = VPP_MEDIA_FMT_MPEG;
 	mod_fb_p->wait_ready = 0;
@@ -1821,9 +1817,8 @@ int govrh_mod_init(void)
 	p_govrh = mod_p;
 
 #ifdef WMT_FTBLK_GOVRH_CURSOR
-	mod_p = (struct govrh_mod_t *) vpp_mod_register(VPP_MOD_CURSOR,
-			sizeof(struct govrh_cursor_mod_t),
-			VPP_MOD_FLAG_FRAMEBUF);
+	mod_p = (govrh_mod_t *) vpp_mod_register(VPP_MOD_CURSOR,
+			sizeof(govrh_cursor_mod_t), VPP_MOD_FLAG_FRAMEBUF);
 	if (!mod_p) {
 		DPRINT("*E* CURSOR module register fail\n");
 		return -1;
@@ -1864,13 +1859,12 @@ int govrh_mod_init(void)
 	fb_p->v_crop = 0;
 	fb_p->flag = 0;
 
-	p_cursor = (struct govrh_cursor_mod_t *) mod_p;
+	p_cursor = (govrh_cursor_mod_t *) mod_p;
 #endif
 
 #ifdef WMT_FTBLK_GOVRH2
-	mod_p = (struct govrh_mod_t *) vpp_mod_register(VPP_MOD_GOVRH2,
-				sizeof(struct govrh_mod_t),
-				VPP_MOD_FLAG_FRAMEBUF);
+	mod_p = (govrh_mod_t *) vpp_mod_register(VPP_MOD_GOVRH2,
+				sizeof(govrh_mod_t), VPP_MOD_FLAG_FRAMEBUF);
 	if (!mod_p) {
 		DPRINT("*E* GOVRH module register fail\n");
 		return -1;
@@ -1894,7 +1888,7 @@ int govrh_mod_init(void)
 
 	/* module frame buffer */
 	mod_fb_p = mod_p->fb_p;
-	mod_fb_p->csc_mode = VPP_CSC_RGB2YUV_JFIF_0_255;
+	mod_fb_p->csc_mode = VPP_CSC_RGB2YUV_SDTV_0_255;
 	mod_fb_p->framerate = VPP_HD_DISP_FPS;
 	mod_fb_p->media_fmt = VPP_MEDIA_FMT_MPEG;
 	mod_fb_p->wait_ready = 0;

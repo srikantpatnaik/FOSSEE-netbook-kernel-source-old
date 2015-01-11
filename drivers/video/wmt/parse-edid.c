@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/parse-edid.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -52,7 +52,7 @@ const char edid_v1_descriptor_flag[] = { 0x00, 0x00 };
 #define UNKNOWN_DESCRIPTOR      -1
 #define DETAILED_TIMING_BLOCK   -2
 
-struct edid_timing_t edid_establish_timing[] = {
+edid_timing_t edid_establish_timing[] = {
 	{ 800, 600, 60 }, { 800, 600, 56 }, { 640, 480, 75 }, { 640, 480, 72 },
 	{ 640, 480, 67 }, { 640, 480, 60 }, { 720, 400, 88 }, { 720, 400, 70 },
 	{ 1280, 1024, 75 }, { 1024, 768, 75 }, { 1024, 768, 70 },
@@ -61,7 +61,7 @@ struct edid_timing_t edid_establish_timing[] = {
 };
 int edid_msg_enable;
 int edid_disable;
-struct edid_parsed_t edid_parsed;
+edid_parsed_t edid_parsed;
 
 #undef DBGMSG
 #define DBGMSG(fmt, args...)	if (edid_msg_enable) \
@@ -114,7 +114,7 @@ static char *get_monitor_name(char *block, char *name)
 	return name;
 } /* End of get_monitor_name() */
 
-static int parse_timing_description(char *dtd, struct edid_info_t *info)
+static int parse_timing_description(char *dtd, edid_info_t *info)
 {
 #define PIXEL_CLOCK_LO     ((unsigned)dtd[0])
 #define PIXEL_CLOCK_HI     ((unsigned)dtd[1])
@@ -239,7 +239,7 @@ static int parse_dpms_capabilities(char flags)
 	return 0;
 } /* End of parse_dpms_capabilities() */
 
-static int parse_monitor_limits(char *block, struct edid_info_t *info)
+static int parse_monitor_limits(char *block, edid_info_t *info)
 {
 #define V_MIN_RATE              block[5]
 #define V_MAX_RATE              block[6]
@@ -264,7 +264,7 @@ static int parse_monitor_limits(char *block, struct edid_info_t *info)
 	return 0;
 } /* End of parse_monitor_limits() */
 
-static int get_established_timing(char *edid, struct edid_info_t *info)
+static int get_established_timing(char *edid, edid_info_t *info)
 {
 	char time_1, time_2;
 
@@ -321,7 +321,7 @@ static int get_established_timing(char *edid, struct edid_info_t *info)
 	return 0;
 } /* End of get_established_timing() */
 
-static int get_standard_timing(char *edid, struct edid_info_t *info)
+static int get_standard_timing(char *edid, edid_info_t *info)
 {
 	char *ptr = edid + STANDARD_TIMING_IDENTIFICATION_START;
 	int h_res, v_res, v_freq;
@@ -368,7 +368,7 @@ static int get_standard_timing(char *edid, struct edid_info_t *info)
 	return 0;
 } /* End of get_standard_timing() */
 
-static int edid_parse_v1(char *edid, struct edid_info_t *info)
+static int edid_parse_v1(char *edid, edid_info_t *info)
 {
 	char *block;
 	char *monitor_name = 0;
@@ -388,18 +388,16 @@ static int edid_parse_v1(char *edid, struct edid_info_t *info)
 		goto parse_end;
 	}
 
+//#ifdef DEBUG
 	if(edid_msg_enable)
 		edid_dump(edid);
+//#endif
 
 	DBGMSG("[EDID] EDID version:  %d.%d\n",
 		(int)edid[EDID_STRUCT_VERSION],
 		(int)edid[EDID_STRUCT_REVISION]);
 
 	get_vendor_sign(edid + ID_MANUFACTURER_NAME, (char *) &vendor_sign);
-
-	info->width = edid[EDID_MAX_HOR_IMAGE_SIZE] * 10;
-	info->height = edid[EDID_MAX_VER_IMAGE_SIZE] * 10;
-	DBGMSG("[EDID] max hor %d cm ver %d cm\n", info->width, info->height);
 
 	/*---------------------------------------------------------------------
 	Parse Monitor name
@@ -433,7 +431,7 @@ static int edid_parse_v1(char *edid, struct edid_info_t *info)
 	strcpy(edid_parsed.tv_name.vendor_name, vendor_sign);
 
 	memset(edid_parsed.tv_name.monitor_name, 0, sizeof(edid_parsed.tv_name.monitor_name));
-	if (strlen(monitor_name) < MONITOR_NAME_LEN)
+	if(strlen(monitor_name) < MONITOR_NAME_LEN)
 		strcpy(edid_parsed.tv_name.monitor_name, monitor_name);
 	else
 		strncpy(edid_parsed.tv_name.monitor_name, monitor_name, MONITOR_NAME_LEN - 1);
@@ -468,7 +466,7 @@ parse_end:
 }
 
 void edid_parse_CEA_VendorSpecDataBlock(char *block, int len,
-						struct edid_info_t *info)
+						edid_info_t *info)
 {
 	int index;
 	char temp;
@@ -541,10 +539,8 @@ void edid_parse_CEA_VendorSpecDataBlock(char *block, int len,
 
 		if (hdmi_3d_len) {
 			int struct_all_3d = 0;
-			int mask_3d = 0xFF;
-			int vic_order_2d;
-			char struct_3d, detail_3d;
-			int i;
+			int mask_3d = 0;
+			char vic_order_2d, struct_3d, detail_3d;
 
 			hdmi_3d_len += index;
 			switch (temp & 0x60) {
@@ -574,11 +570,6 @@ void edid_parse_CEA_VendorSpecDataBlock(char *block, int len,
 			if (struct_all_3d & BIT8)
 				DBGMSG("\t\tSupport Side by Side\n");
 
-			for (i = 0; i < 16; i++) {
-				if (mask_3d & (0x1 << i))
-					info->vic_3d[i].mask = struct_all_3d;
-			}
-
 			DBGMSG("\t\t[3D Structure type 0-Frame packing");
 			DBGMSG(",6-Top and Bottom,8-Side by Side]\n");
 			while (index < hdmi_3d_len) {
@@ -591,8 +582,6 @@ void edid_parse_CEA_VendorSpecDataBlock(char *block, int len,
 				} else {
 					detail_3d = 0;
 				}
-				info->vic_3d[vic_order_2d].mask |=
-					(0x1 << struct_3d);
 				DBGMSG("\t\tVIC %d,3D struct %d,detail %d\n",
 					vic_order_2d, struct_3d, detail_3d);
 			}
@@ -600,7 +589,7 @@ void edid_parse_CEA_VendorSpecDataBlock(char *block, int len,
 	}
 }
 
-static int edid_parse_CEA(char *edid, struct edid_info_t *info)
+static int edid_parse_CEA(char *edid, edid_info_t *info)
 {
 	char *block, *block_end;
 	char checksum = 0;
@@ -617,15 +606,15 @@ static int edid_parse_CEA(char *edid, struct edid_info_t *info)
 		checksum += edid[i];
 
 	if (checksum != 0) {
-		DPRINT("*E* CEA EDID checksum (0x%02x) - data is corrupt\n",
-			checksum);
+		DPRINT("*E* CEA EDID checksum (0x%02x) failed - data is corrupt\n", checksum);
 		info->option |= (EDID_OPT_HDMI + EDID_OPT_AUDIO);
-		edid_dump(edid);
 		return -1;
 	}
 
+//#ifdef DEBUG
 	if(edid_msg_enable)
 		edid_dump(edid);
+//#endif
 
 	DBGMSG("[EDID] CEA EDID Version %d.%d\n", edid[0], edid[1]);
 
@@ -642,34 +631,27 @@ static int edid_parse_CEA(char *edid, struct edid_info_t *info)
 	block = edid + 4;
 	do {
 		len = block[0] & 0x1F;
-		switch (((block[0] & 0xE0) >> 5)) {
+		switch (((block[0] & 0xE0)>>5)) {
 		case 1:	/* Audio Data Block */
 			DBGMSG("Audio Data Block (0x%02X)\n", block[0]);
 			info->option |= EDID_OPT_AUDIO;
 			sadcnt_in_block = len / 3;
 
-			for (i = 0; i < sadcnt_in_block; i++) {
-				if (num < AUD_SAD_NUM) {
+			for(i = 0; i < sadcnt_in_block; i++){
+				if(num < AUD_SAD_NUM) {
 					edid_parsed.sad[num].flag = 1;
-					edid_parsed.sad[num].sad_byte[0] =
-						block[i * 3 + 1];
-					edid_parsed.sad[num].sad_byte[1] =
-						block[i * 3 + 2];
-					edid_parsed.sad[num].sad_byte[2] =
-						block[i * 3 + 3];
+					edid_parsed.sad[num].sad_byte[0] = block[i * 3 + 1];
+					edid_parsed.sad[num].sad_byte[1] = block[i * 3 + 2];
+					edid_parsed.sad[num].sad_byte[2] = block[i * 3 + 3];
 					num++;
 				} else {
-					DPRINT("Lose SAD info:%02X %02X %02X\n",
-						block[i * 3 + 1],
-						block[i * 3 + 2],
-						block[i * 3 + 3]);
+					DPRINT("Lose SAD info: 0x%02X 0x%02X 0x%02X\n",
+						block[i * 3 + 1], block[i * 3 + 2], block[i * 3 + 3]);
 				}
 
 				DBGMSG("\t ======== SDA %d ========\n", i);
 				DBGMSG("\t SDA Data: 0x%02X 0x%02X 0x%02X\n",
-					block[i * 3 + 1],
-					block[i * 3 + 2],
-					block[i * 3 + 3]);
+					block[i * 3 + 1], block[i * 3 + 2], block[i * 3 + 3]);
 
 				audio_format = (block[i * 3 + 1] & 0x78) >> 3;
 				switch (audio_format) {
@@ -722,8 +704,7 @@ static int edid_parse_CEA(char *edid, struct edid_info_t *info)
 				break;
 				}
 
-				DBGMSG("\t Max channel: %d\n",
-					(block[i * 3 + 1] & 0x7) + 1);
+				DBGMSG("\t Max channel: %d\n", (block[i * 3 + 1] & 0x7) + 1);
 				DBGMSG("\t %s support 32 KHz\n",
 					(block[i * 3 + 2] & 0x1) ? "" : "no");
 				DBGMSG("\t %s support 44 KHz\n",
@@ -738,26 +719,18 @@ static int edid_parse_CEA(char *edid, struct edid_info_t *info)
 					(block[i * 3 + 2] & 0x20) ? "" : "no");
 				DBGMSG("\t %s support 192 KHz\n",
 					(block[i * 3 + 2] & 0x40) ? "" : "no");
-				if (audio_format == 1) { /* For LPCM */
+				if(audio_format == 1) { /* For LPCM */
 					DBGMSG("\t %s support 16 bit\n",
-						(block[i * 3 + 3] & 0x1) ?
-						"" : "no");
+						(block[i * 3 + 3] & 0x1) ? "" : "no");
 					DBGMSG("\t %s support 20 bit\n",
-						(block[i * 3 + 3] & 0x2) ?
-						"" : "no");
+						(block[i * 3 + 3] & 0x2) ? "" : "no");
 					DBGMSG("\t %s support 24 bit\n",
-						(block[i * 3 + 3] & 0x4) ?
-						"" : "no");
-				} else if (audio_format >= 2 &&
-					audio_format <= 8) {
-					/* From AC3 to ATRAC */
-					DBGMSG("\t Max bitrate: %d kbit/s\n",
-						block[i * 3 + 3] * 8);
-				} else if (audio_format >= 9 &&
-					audio_format <= 14) {
-					/* From One-bit-audio to WMA Pro*/
-					DBGMSG("\t Audio Format Code:0x%02X\n",
-					block[i * 3 + 3]);
+						(block[i * 3 + 3] & 0x4) ? "" : "no");
+				} else if(audio_format >= 2 && audio_format <= 8) { /* From AC3 to ATRAC */
+					DBGMSG("\t Max bitrate: %d kbit/s\n", block[i * 3 + 3] * 8);
+				}
+				else if(audio_format >= 9 && audio_format <= 14) { /* From One-bit-audio to WMA Pro*/
+					DBGMSG("\t Audio Format Code dependent value: 0x%02X\n", block[i * 3 + 3]);
 				}
 				DBGMSG("\t ========================\n");
 			}
@@ -769,8 +742,6 @@ static int edid_parse_CEA(char *edid, struct edid_info_t *info)
 
 				vic = block[1 + i] & 0x7F;
 				info->cea_vic[vic / 8] |= (0x1 << (vic % 8));
-				if (i < 16)
-					info->vic_3d[i].vic = vic;
 				DBGMSG("\t %2d : VIC %2d %dx%d@%d%s %s\n", i,
 					vic, hdmi_vic_info[vic].resx,
 					hdmi_vic_info[vic].resy,
@@ -884,7 +855,7 @@ int edid_checksum(char *edid, int len)
 	return checksum;
 }
 
-int edid_parse(char *edid, struct edid_info_t *info)
+int edid_parse(char *edid, edid_info_t *info)
 {
 	int ext_cnt = 0;
 
@@ -898,7 +869,7 @@ int edid_parse(char *edid, struct edid_info_t *info)
 
 	DBG_MSG("[EDID] Enter\n");
 
-	memset(info, 0, sizeof(struct edid_info_t));
+	memset(info, 0, sizeof(edid_info_t));
 	info->option = EDID_OPT_VALID;
 	if (edid_parse_v1(edid, info) == 0) {
 		ext_cnt = edid[0x7E];
@@ -923,7 +894,7 @@ int edid_parse(char *edid, struct edid_info_t *info)
 	return info->option;
 }
 
-int edid_find_support(struct edid_info_t *info, unsigned int resx,
+int edid_find_support(edid_info_t *info, unsigned int resx,
 	unsigned int resy, int freq, struct fb_videomode **vmode)
 {
 	struct fb_videomode *p;
@@ -936,26 +907,6 @@ int edid_find_support(struct edid_info_t *info, unsigned int resx,
 
 	if (!info)
 		return 0;
-
-	/* find detail timing */
-	for (i = 0; i < 4; i++) {
-		p = &info->detail_timing[i];
-		if (p->pixclock == 0)
-			continue;
-		if (resx != p->xres)
-			continue;
-		if (resy != p->yres)
-			continue;
-
-		temp = p->refresh;
-		temp |= (p->vmode & FB_VMODE_INTERLACED) ?
-			EDID_TMR_INTERLACE : 0;
-		if (freq != temp)
-			continue;
-		*vmode = p;
-		ret = 3;
-		goto find_end;
-	}
 
 	/* find cea timing */
 	for (i = 0; i < 6; i++) {
@@ -997,6 +948,26 @@ int edid_find_support(struct edid_info_t *info, unsigned int resx,
 		if (freq != temp)
 			continue;
 		ret = 5;
+		goto find_end;
+	}
+
+	/* find detail timing */
+	for (i = 0; i < 4; i++) {
+		p = &info->detail_timing[i];
+		if (p->pixclock == 0)
+			continue;
+		if (resx != p->xres)
+			continue;
+		if (resy != p->yres)
+			continue;
+
+		temp = p->refresh;
+		temp |= (p->vmode & FB_VMODE_INTERLACED) ?
+			EDID_TMR_INTERLACE : 0;
+		if (freq != temp)
+			continue;
+		*vmode = p;
+		ret = 3;
 		goto find_end;
 	}
 
@@ -1048,22 +1019,9 @@ find_end:
 
 unsigned int edid_get_hdmi_phy_addr(void)
 {
-	struct vout_t *vo;
+	vout_t *vo;
 
 	vo = vout_get_entry(VPP_VOUT_NUM_HDMI);
 	return vo->edid_info.hdmi_phy_addr;
-}
-
-unsigned int edid_get_hdmi_3d_mask(struct edid_info_t *info, int vic)
-{
-	int i;
-
-	if (!info)
-		return 0;
-	for (i = 0; i < 16; i++) {
-		if (info->vic_3d[i].vic == vic)
-			return info->vic_3d[i].mask;
-	}
-	return 0;
 }
 

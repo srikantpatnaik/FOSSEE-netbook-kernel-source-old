@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/hw/wmt-vpp-hw.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,37 +85,35 @@
 #define VPP_IRQ_GOVR2_TG	IRQ_VPP_IRQ25
 
 /* DVI I2C */
-#define VPP_DVI_I2C_DEFAULT	1 /* default i2c bus */
-#define VPP_DVI_I2C_SW_BIT	0x10 /* hw or sw i2c */
-#define VPP_DVI_I2C_ID_MASK	0x1F
-#define VPP_DVI_I2C_ID		g_vpp.dvi_i2c_no
-#define VPP_DVI_EDID_ID		(VPP_DVI_I2C_SW_BIT + 0x1) /* DVO EDID use
-								sw i2c bus 1 */
+#define VPP_DVI_I2C_BIT		0x80 /* use sw id that can vary */
+#define VPP_DVI_I2C_SW_BIT 	0x10 /* hw or sw i2c */
+#define VPP_DVI_I2C_ID_MASK 	0x1F
+#define VPP_DVI_I2C_ID 		(VPP_DVI_I2C_BIT + 0x1)
+#define VPP_DVI_EDID_ID 	(VPP_DVI_I2C_SW_BIT + 0x1) /* DVO EDID use sw i2c bus 1 */
 
 /* vout */
-#define VPP_VOUT_INFO_NUM	5 /* linux fb or govr number */
+#define VPP_VOUT_INFO_NUM 	2 /* linux fb or govr number */
 
-#define VPP_VOUT_NUM		2
-#define VPP_VOUT_ALL		0xFFFFFFFF
-#define VPP_VOUT_NUM_HDMI	0
-#define VPP_VOUT_NUM_LVDS	1
-#define VPP_VOUT_NUM_DVI	1
+#define VPP_VOUT_NUM 		2
+#define VPP_VOUT_ALL 		0xFFFFFFFF
+#define VPP_VOUT_NUM_HDMI 	0
+#define VPP_VOUT_NUM_LVDS 	1
+#define VPP_VOUT_NUM_DVI 	1
 
 #define WMT_FTBLK_VOUT_DVI
 #define WMT_FTBLK_VOUT_HDMI
 #define WMT_FTBLK_VOUT_LVDS
 
 /* hw parameter */
-#define VPP_DVI_INT_DEFAULT	0 /* default interrupt gpio */
-#define VPP_VOINT_NO		g_vpp.dvi_int_no
-#define VPP_UBOOT_COLFMT	VDO_COL_FMT_RGB_565
-#define VPP_FB_ADDR_ALIGN	64
-#define VPP_FB_WIDTH_ALIGN	64 /* hw should 4 byte align,android
+#define VPP_VOINT_NO 		0  /* DVO external board interrupt use GPIOxx */
+#define VPP_UBOOT_COLFMT 	VDO_COL_FMT_RGB_565
+#define VPP_FB_ADDR_ALIGN 	64
+#define VPP_FB_WIDTH_ALIGN 	64   /* hw should 4 byte align,android
 	framework 8 byte align modify by aksenxu VPU need 64bytes alignment
 	you need modify FramebufferNativeWindow::FramebufferNativeWindow
 	in android framework together */
-#define VPP_GOVR_DVO_DELAY_24	0x4036
-#define VPP_GOVR_DVO_DELAY_12	0x120
+#define VPP_GOVR_DVO_DELAY_24 	0x4036
+#define VPP_GOVR_DVO_DELAY_12 	0x120
 
 /*-------------------- DEPENDENCY -------------------------------------*/
 #ifdef __KERNEL__
@@ -130,8 +128,8 @@
 #ifdef WMT_FTBLK_VOUT_HDMI
 #include "wmt-hdmi-reg.h"
 #endif
+#ifndef CFG_LOADER
 #include "wmt-scl-reg.h"
-#ifndef CONFIG_UBOOT
 #include "wmt-cec-reg.h"
 #endif
 #endif /* WMT_VPP_HW_H */

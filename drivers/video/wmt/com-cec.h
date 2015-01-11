@@ -42,16 +42,14 @@ extern "C" {
 #define MAX_MSG_BYTE 16
 #define MSG_ABORT 0xff
 
-struct wmt_cec_msg {
+typedef struct wmt_cec_msg {
 	char msglen;
 	char msgdata[MAX_MSG_BYTE];
-};
-#define wmt_cec_msg_t struct wmt_cec_msg
+} wmt_cec_msg_t;
 
-struct wmt_phy_addr {
+typedef struct wmt_phy_addr {
 	unsigned int phy_addr;
-};
-#define wmt_phy_addr_t struct wmt_phy_addr
+} wmt_phy_addr_t;
 
 #define WMT_CEC_IOC_MAGIC	'c'
 #define WMT_CEC_IOC_MAXNR	3

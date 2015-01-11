@@ -1,19 +1,19 @@
-/*++ 
- * WonderMedia Memory Block driver 
+/*++
+ * WonderMedia Memory Block driver
  *
  * Copyright c 2010  WonderMedia  Technologies, Inc.
  *
- * This program is free software: you can redistribute it and/or modify 
- * it under the terms of the GNU General Public License as published by 
- * the Free Software Foundation, either version 2 of the License, or 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, 
- * but WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
- * GNU General Public License for more details. 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * WonderMedia Technologies, Inc.
@@ -67,27 +67,30 @@ int mb_do_put(unsigned long, pid_t, char *);
 int mb_do_counter(unsigned long, char *);
 
 int user_to_prdt(
-    unsigned long user, 
-    unsigned int size, 
+    unsigned long user,
+    unsigned int size,
     struct prdt_struct *next,
     unsigned int items);
 
 unsigned int wmt_mmu_table_size(unsigned int size);
 void wmt_mmu_table_dump(struct mmu_table_info *info);
+// To fix framebuffer build issue
+#if 0
 int wmt_mmu_table_check(
-    unsigned int mmuPhys, 
+    unsigned int mmuPhys,
     unsigned int mmuSize,
     unsigned int size);
 unsigned int wmt_mmu_table_from_phys(
-    unsigned int mmuPhys, 
+    unsigned int mmuPhys,
     unsigned int mmuSize,
     unsigned int addr,
     unsigned int size);
 unsigned int wmt_mmu_table_from_user(
-    unsigned int mmuPhys, 
+    unsigned int mmuPhys,
     unsigned int mmuSize,
     unsigned int user,
     unsigned int size);
+#endif
 unsigned int wmt_mmu_table_create(
     unsigned int addr,
     unsigned int size,

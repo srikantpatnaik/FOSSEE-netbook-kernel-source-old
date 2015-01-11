@@ -1,5 +1,5 @@
 /*++
- * linux/drivers/video/wmt/lvds.h
+ * linux/drivers/video/wmt/hdmi_cp.h
  * WonderMedia video post processor (VPP) driver
  *
  * Copyright c 2013  WonderMedia  Technologies, Inc.
@@ -21,12 +21,11 @@
  * 4F, 533, Chung-Cheng Road, Hsin-Tien, Taipei 231, R.O.C
 --*/
 
-#include "vpp.h"
-
-#ifndef LVDS_H
+#ifndef HDMI_CP_H
 /* To assert that only one occurrence is included */
-#define LVDS_H
+#define HDMI_CP_H
 /*-------------------- MODULE DEPENDENCY -------------------------------------*/
+#include "vpp.h"
 
 /*	following is the C++ header	*/
 #ifdef	__cplusplus
@@ -34,40 +33,31 @@ extern	"C" {
 #endif
 
 /*-------------------- EXPORTED PRIVATE CONSTANTS ----------------------------*/
-/* #define  LVDS_XXXX  1    *//*Example*/
+/* #define  HDMI_CP_XXXX  1    *//*Example*/
+/* #define CONFIG_HDMI_CP_DISABLE */
 
 /*-------------------- EXPORTED PRIVATE TYPES---------------------------------*/
-/* typedef  void  lvds_xxx_t;  *//*Example*/
+/* typedef  void  hdmi_cp_xxx_t;  *//*Example*/
 
 /*-------------------- EXPORTED PRIVATE VARIABLES ----------------------------*/
-#ifdef LVDS_C
+#ifdef HDMI_CP_C
 #define EXTERN
+
 #else
 #define EXTERN   extern
-#endif /* ifdef LVDS_C */
 
-/* EXTERN int      lvds_xxx; *//*Example*/
+#endif /* ifdef HDMI_CP_C */
 
+/* EXTERN int      hdmi_cp_xxx; *//*Example*/
 #undef EXTERN
 
 /*--------------------- EXPORTED PRIVATE MACROS ------------------------------*/
-/* #define LVDS_XXX_YYY   xxxx *//*Example*/
+/* #define HDMI_CP_XXX_YYY   xxxx *//*Example*/
 /*--------------------- EXPORTED PRIVATE FUNCTIONS  --------------------------*/
-/* extern void  lvds_xxx(void); *//*Example*/
-void lvds_set_enable(vpp_flag_t enable);
-int lvds_get_enable(void);
-void lvds_set_rgb_type(int bpp);
-vdo_color_fmt lvds_get_colfmt(void);
-void lvds_reg_dump(void);
-void lvds_suspend(int sts);
-void lvds_resume(int sts);
-void lvds_init(void);
-void lvds_set_power_down(int pwrdn);
-void lvds_set_sync_polar(int h_lo, int v_lo);
-void lvds_get_sync_polar(int *hsync_hi, int *vsync_hi);
+/* extern void  hdmi_cp_xxx(void); *//*Example*/
 
 #ifdef	__cplusplus
 }
 #endif
-#endif /* ifndef LVDS_H */
+#endif /* ifndef HDMI_CP_H */
 

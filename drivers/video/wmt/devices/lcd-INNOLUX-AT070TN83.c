@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/lcd-INNOLUX-AT070TN83.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,12 +36,12 @@
 /* typedef  xxxx lcd_xxx_t; *//*Example*/
 
 /*----------EXPORTED PRIVATE VARIABLES are defined in lcd.h  -------------*/
-static void lcd_at070tn83_initial(void);
-static void lcd_at070tn83_uninitial(void);
+static void lcd_at070tn83_power_on(void);
+static void lcd_at070tn83_power_off(void);
 
 /*----------------------- INTERNAL PRIVATE VARIABLES - -----------------------*/
 /* int  lcd_xxx;        *//*Example*/
-struct lcd_parm_t lcd_at070tn83_parm = {
+lcd_parm_t lcd_at070tn83_parm = {
 	.bits_per_pixel = 18,
 	.capability = LCD_CAP_CLK_HI,
 	.vmode = {
@@ -60,46 +60,50 @@ struct lcd_parm_t lcd_at070tn83_parm = {
 	.vmode = 0,
 	.flag = 0,
 	},
-	.width = 154,
-	.height = 85,
-	.initial = lcd_at070tn83_initial,
-	.uninitial = lcd_at070tn83_uninitial,
+	.initial = lcd_at070tn83_power_on,
+	.uninitial = lcd_at070tn83_power_off,
 };
 
 /*--------------------- INTERNAL PRIVATE FUNCTIONS ---------------------------*/
 /* void lcd_xxx(void); *//*Example*/
 
 /*----------------------- Function Body --------------------------------------*/
-static void lcd_at070tn83_initial(void)
+static void lcd_at070tn83_power_on(void)
 {
-#if 0
-	outl(inl(GPIO_BASE_ADDR + 0x80) | BIT0, GPIO_BASE_ADDR + 0x80);
-	outl(inl(GPIO_BASE_ADDR + 0x4C) | BIT28, GPIO_BASE_ADDR + 0x4C);
-	outl(inl(GPIO_BASE_ADDR + 0x8C) | BIT28, GPIO_BASE_ADDR + 0x8C);
-	/* DVDD */
-	/* T2 > 0ms */ /* AVDD/VCOM(NANDQS) */
-	outl(inl(GPIO_BASE_ADDR + 0xCC) | BIT28, GPIO_BASE_ADDR + 0xCC);
-	/* T4 > 0ms */
-	/* VGH */
-	/* 0 < T6 <= 10ms */
-	lcd_enable_signal(1); /* signal, DVO enable */
-	lcd_oem_enable_backlight(200); /* T12 > 200ms, BL(bit0) */
+/*	DPRINT("lcd_at070tn83_power_on\n"); */
+
+	/* TODO */
+#if (WMT_CUR_PID == WMT_PID_8425)
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x24, 0x7, 0, 0x7); /* gpio enable */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x54, 0x7, 0, 0x7); /* output mode */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x84, 0x7, 0, 0x0); /* output mode */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x640, 0x707, 0, 0x707); /*pull en*/
+
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x84, 0x2, 1, 0x1); /* VGL lo */
+	mdelay(8); /* delay 5ms */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x84, 0x1, 0, 0x1); /* AVDD hi */
+	mdelay(6); /* delay 5ms */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x84, 0x4, 2, 0x1); /* VGH hi */
+	mdelay(10); /* delay 10ms */
 #endif
 }
 
-static void lcd_at070tn83_uninitial(void)
+static void lcd_at070tn83_power_off(void)
 {
-#if 0
-	/* BL(bit0) */
-	outl(inl(GPIO_BASE_ADDR + 0xC0) & ~BIT0, GPIO_BASE_ADDR + 0xC0);
-	mdelay(200); /* T12 > 200ms */
-	lcd_enable_signal(0); /* singal, DVO enable */
-	/* AVDD/VCOM(NANDQS) */
-	outl(inl(GPIO_BASE_ADDR + 0xCC) & ~BIT28, GPIO_BASE_ADDR + 0xCC);
+/*	DPRINT("lcd_at070tn83_power_off\n"); */
+
+	/* TODO */
+#if (WMT_CUR_PID == WMT_PID_8425)
+	mdelay(10); /* delay 10ms */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x84, 0x4, 2, 0x0); /* VGH lo */
+	mdelay(6); /* delay 5ms */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x84, 0x1, 0, 0x0); /* AVDD lo */
+	mdelay(8); /* delay 5ms */
+	vppif_reg32_write(GPIO_BASE_ADDR + 0x84, 0x2, 1, 0x0); /* VGL lo */
 #endif
 }
 
-struct lcd_parm_t *lcd_at070tn83_get_parm(int arg)
+lcd_parm_t *lcd_at070tn83_get_parm(int arg)
 {
 	return &lcd_at070tn83_parm;
 }

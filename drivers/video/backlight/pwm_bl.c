@@ -1,14 +1,21 @@
-/*
- * linux/drivers/video/backlight/pwm_bl.c
- *
- * simple PWM based backlight control, board code has to setup
- * 1) pin configuration so PWM waveforms can output
- * 2) platform_data being correctly configured
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- */
+/*++
+	linux/drivers/video/backlight/pwm_bl.c
+
+	Copyright (c) 2013  WonderMedia Technologies, Inc.
+
+	This program is free software: you can redistribute it and/or modify it under the
+	terms of the GNU General Public License as published by the Free Software Foundation,
+	either version 2 of the License, or (at your option) any later version.
+
+	This program is distributed in the hope that it will be useful, but WITHOUT
+	ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+	PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	You should have received a copy of the GNU General Public License along with
+	this program.  If not, see <http://www.gnu.org/licenses/>.
+
+	WonderMedia Technologies, Inc.
+	10F, 529, Chung-Cheng Road, Hsin-Tien, Taipei 231, R.O.C.
+--*/
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -20,17 +27,8 @@
 #include <linux/pwm.h>
 #include <linux/pwm_backlight.h>
 #include <linux/slab.h>
-#include <linux/irq.h>
 
 #include <mach/hardware.h>
-
-#include <linux/delay.h>
-#include <linux/gpio.h>
-#include <mach/wmt_iomux.h>
-
-int pwm_or_gpio=1;
-extern int wmt_getsyspara(char *varname, unsigned char *varval, int *varlen);
-
 
 struct pwm_bl_data {
 	struct pwm_device	*pwm;
@@ -56,85 +54,6 @@ static inline void __pwm0_gpio_setup(void)
 
 	/* share pin */
 	REG32_VAL(PIN_SHARING_SEL_4BYTE_ADDR) &= ~0x1000;
-}
-
-static int pre_brightness_value;
-void sgm3727_bl_brightness(int brightness_value)
-{
-    int i = 0;
-	int pulse_num = 0;
-    brightness_value= (brightness_value-10)*31/245;
-    brightness_value = 31 - brightness_value;
-
-    if (brightness_value >= 32)
-    {
-        brightness_value = 31;
-    }
-    if (brightness_value < 0)
-    {
-        brightness_value = 0;
-    }
-	//printk("%s,brightness_value=%d,%d\n",__FUNCTION__,pre_brightness_value,brightness_value);
-	if(pre_brightness_value == brightness_value)
-	{
-		return;
-	}
-	else if(pre_brightness_value == 0xFF)
-	{
-		pulse_num = brightness_value;
-	}
-	else if(brightness_value>pre_brightness_value)
-	{
-		pulse_num = brightness_value - pre_brightness_value;
-	}
-	else
-	{
-		pulse_num = (brightness_value + 32 ) - pre_brightness_value;
-	}
-
-	//printk("%s,pulse_num=%d\n",__FUNCTION__,pulse_num);
-    if (pulse_num < 32)
-    {
-		local_irq_disable();
-		if(pre_brightness_value == 0xFF)
-		{
-	        gpio_direction_output(WMT_PIN_GP0_GPIO0,0);
-	        mdelay(5);//5
-	        gpio_direction_output(WMT_PIN_GP0_GPIO0,1);
-	        udelay(50);
-		}
-        for (i=0; i < pulse_num; i++)
-        {
-            gpio_direction_output(WMT_PIN_GP0_GPIO0,0);
-            udelay(10);//50
-            gpio_direction_output(WMT_PIN_GP0_GPIO0,1);
-            udelay(10);//50
-        }
-		local_irq_enable();
-    }
-
-	pre_brightness_value = brightness_value;
-}
-
-static int cw500_backlight_update_status(struct backlight_device *bl)
-{
-    struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
-    int brightness = bl->props.brightness;
-    int max = bl->props.max_brightness;
-
-    if(!brightness)
-    {
-        gpio_direction_output(WMT_PIN_GP0_GPIO0,0);
-		pre_brightness_value = 0xFF;
-		mdelay(10);
-        return;
-    }
-    else
-    {
-        sgm3727_bl_brightness(brightness);
-    }
-
-    return 0;
 }
 
 static int pwm_backlight_update_status(struct backlight_device *bl)
@@ -187,31 +106,12 @@ static int pwm_backlight_check_fb(struct backlight_device *bl,
 	return !pb->check_fb || pb->check_fb(pb->dev, info);
 }
 
-backlight_update_status_select(struct backlight_device *bl)
-{
-	if(pwm_or_gpio){
-		//printk("pwm branch\n");
-		pwm_backlight_update_status(bl);
-	}else{
-		printk("gpio branch\n");
-		cw500_backlight_update_status(bl);
-	}
-
-}
-
 static const struct backlight_ops pwm_backlight_ops = {
-	//.update_status	= pwm_backlight_update_status,//TODO: add uboot control rubbit
-	//.update_status	= cw500_backlight_update_status,
-	.update_status	= backlight_update_status_select,
+	.update_status	= pwm_backlight_update_status,
 	.get_brightness	= pwm_backlight_get_brightness,
 	.check_fb	= pwm_backlight_check_fb,
 };
-/*
-*    wmt.bl_select:
-*    0----->gpio control back light
-*    1----->pwm control back light
-*    default pwm control back light
-*/
+
 static int pwm_backlight_probe(struct platform_device *pdev)
 {
 	struct backlight_properties props;
@@ -219,18 +119,7 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	struct backlight_device *bl;
 	struct pwm_bl_data *pb;
 	int ret;
-	unsigned char buf[64];
-	int varlen = sizeof(buf);
 
-	memset(buf, 0x0, sizeof(buf));
-	ret = wmt_getsyspara("wmt.bl_select", buf, &varlen);
-	if (ret == 0) {
-		sscanf(buf, "%d", &pwm_or_gpio);
-	}
-	else {
-		pwm_or_gpio = 1;
-		printk("default use pwm to control backlight,pwm_or_gpio:%d\n",pwm_or_gpio);
-	}
 	if (!data) {
 		dev_err(&pdev->dev, "failed to find platform data\n");
 		return -EINVAL;
@@ -248,16 +137,9 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err_alloc;
 	}
-	if(pwm_or_gpio){
-		__pwm0_gpio_setup();
-	}else{
-		pre_brightness_value = 0;
-		//ret = gpio_request(WMT_PIN_GP0_GPIO0,"gpio lcd back light");
-		//if (ret){
-		//	printk("gpio_request gpio lcd back light  failed\n");
-		//	goto err_alloc;
-		//}
-	}
+
+	__pwm0_gpio_setup();
+
 	pb->invert = data->invert;
 	pb->period = data->pwm_period_ns;
 	pb->notify = data->notify;
@@ -313,53 +195,36 @@ static int pwm_backlight_remove(struct platform_device *pdev)
 	pwm_free(pb->pwm);
 	if (data->exit)
 		data->exit(&pdev->dev);
-	if(!pwm_or_gpio)
-		gpio_free(WMT_PIN_GP0_GPIO0);
 	return 0;
 }
 
 #ifdef CONFIG_PM
 static int pwm_backlight_suspend(struct device *dev)
 {
-	int ret=0;
 	struct backlight_device *bl = dev_get_drvdata(dev);
 	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
-	printk("%s\n",__func__);
+
 	if (pb->notify)
 		pb->notify(pb->dev, 0);
-	if(pwm_or_gpio){
-		if (pb->invert) {
-			pwm_config(pb->pwm, pb->period, pb->period);
-		} else {
-			pwm_config(pb->pwm, 0, pb->period);
-			pwm_disable(pb->pwm);
-		}
-	}else{
 
+	if (pb->invert) {
+		pwm_config(pb->pwm, pb->period, pb->period);
+	} else {
+		pwm_config(pb->pwm, 0, pb->period);
+		pwm_disable(pb->pwm);
 	}
 
 	if (pb->notify_after)
 		pb->notify_after(pb->dev, 0);
-	if(!pwm_or_gpio){
-		gpio_free(WMT_PIN_GP0_GPIO0);
-	}
 	return 0;
 }
 
 static int pwm_backlight_resume(struct device *dev)
 {
-	int ret=0;
-	printk("%s\n",__func__);
-	if(pwm_or_gpio){
-		__pwm0_gpio_setup();
-	}else{
-		ret = gpio_request(WMT_PIN_GP0_GPIO0,"gpio lcd back light");
-		if (ret){
-			printk("gpio_request gpio lcd back light  failed\n");
-			return -1;
-		}
-		gpio_direction_output(WMT_PIN_GP0_GPIO0,0);
-	}
+	//struct backlight_device *bl = dev_get_drvdata(dev);
+	//backlight_update_status(bl);
+
+	__pwm0_gpio_setup();
 	return 0;
 }
 

@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/hw/wmt-govrh-reg.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,38 +43,38 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int start:11;
-			unsigned int reserved:5;
-			unsigned int end:11;
+			unsigned int start : 11;
+			unsigned int reserved : 5;
+			unsigned int end : 11;
 		} b;
 	} cur_hcoord; /* 0x14 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int start:11;
-			unsigned int reserved:5;
-			unsigned int end:11;
+			unsigned int start : 11;
+			unsigned int reserved : 5;
+			unsigned int end : 11;
 		} b;
 	} cur_vcoord; /* 0x18 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int enable:1;
-			unsigned int reserved:7;
-			unsigned int out_field:1;	/* 0:frame,1-field */
+			unsigned int enable : 1;
+			unsigned int reserved : 7;
+			unsigned int out_field : 1;	/* 0:frame,1-field */
 		} b;
 	} cur_status; /* 0x1C */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int colkey:24;
-			unsigned int enable:1;
-			unsigned int invert:1;
-			unsigned int reserved:2;
-			unsigned int alpha:1;
+			unsigned int colkey : 24;
+			unsigned int enable : 1;
+			unsigned int invert : 1;
+			unsigned int reserved : 2;
+			unsigned int alpha : 1;
 		} b;
 	} cur_color_key; /* 0x20 */
 
@@ -83,29 +83,29 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int rgb:1;
-			unsigned int yuv422:1;
+			unsigned int rgb : 1;
+			unsigned int yuv422 : 1;
 		} b;
 	} dvo_pix; /* 0x30 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int delay:14;
-			unsigned int inv:1;
+			unsigned int delay : 14;
+			unsigned int inv : 1;
 		} b;
 	} dvo_dly_sel; /* 0x34 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int cur_enable:1;
-			unsigned int mem_enable:1;
-			unsigned int reserved:7;
-			unsigned int err_sts:1;
-			unsigned int reserved2:6;
-			unsigned int cur_sts:1;
-			unsigned int mem_sts:1;
+			unsigned int cur_enable : 1;
+			unsigned int mem_enable : 1;
+			unsigned int reserved : 7;
+			unsigned int err_sts : 1;
+			unsigned int reserved2 : 6;
+			unsigned int cur_sts : 1;
+			unsigned int mem_sts : 1;
 		} b;
 	} interrupt; /* 0x38 */
 
@@ -114,17 +114,17 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int v:8;
-			unsigned int u:8;
-			unsigned int y:8;
+			unsigned int v : 8;
+			unsigned int u : 8;
+			unsigned int y : 8;
 		} b;
 	} saturation; /* 0x44 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int enable:1;
-			unsigned int format:1; /* 0:YCbCr, 1:RGB */
+			unsigned int enable : 1; 
+			unsigned int format : 1; /* 0:YCbCr, 1:RGB */
 		} b;
 	} saturation_enable; /* 0x48 */
 
@@ -132,31 +132,31 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int enable:1;
-			unsigned int reserved:7;
-			unsigned int h264:1;
+			unsigned int enable : 1;
+			unsigned int reserved : 7;
+			unsigned int h264 : 1;
 		} b;
 	} mif; /* 0x80 */
 
 	unsigned int colfmt; /* 0x84, 0:422,1:420 */
 	unsigned int srcfmt; /* 0x88, 0:frame,1:field */
 	unsigned int dstfmt; /* 0x8C, 0:frame,1:field */
-	unsigned int ysa;	/* 0x90 */
+	unsigned int ysa; /* 0x90 */
 	unsigned int csa;
 	unsigned int pixwid;
 	unsigned int bufwid;
-	unsigned int vcrop;	/* 0xA0 */
+	unsigned int vcrop; /* 0xA0 */
 	unsigned int hcrop;
 	unsigned int fhi;
-	unsigned int colfmt2;	/* 0xAC, 1-444,other refer 0x84 */
+	unsigned int colfmt2; /* 0xAC, 1-444,other refer 0x84 */
 	unsigned int ysa2;	/* 0xB0 */
 	unsigned int csa2;
 	union {
 		unsigned int val;
 		struct {
-			unsigned int req_num:8;	/* Y & RGB */
-			unsigned int req_num_c:8;	/* C */
-			unsigned int frame_enable:1;
+			unsigned int req_num : 8;	/* Y & RGB */
+			unsigned int req_num_c : 8;	/* C */
+			unsigned int frame_enable : 1;
 		} b;
 	} mif_frame_mode; /* 0xB8 */
 
@@ -164,17 +164,17 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int update:1;
-			unsigned int reserved:7;
-			unsigned int level:1;	/* 0:level 1, 1:level2 */
+			unsigned int update : 1;
+			unsigned int reserved : 7;
+			unsigned int level : 1;	/* 0:level 1, 1:level2 */
 		} b;
 	} sts; /* 0xE4 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int fixed:1;	/* 0-top, 1-bottom */
-			unsigned int enable:1;
+			unsigned int fixed : 1;	/* 0-top, 1-bottom */
+			unsigned int enable : 1;
 		} b;
 	} swfld; /* 0xE8 */
 
@@ -183,9 +183,9 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int enable:1;
-			unsigned int reserved:7;
-			unsigned int mode:1; /* 0-frame,1-field */
+			unsigned int enable : 1;
+			unsigned int reserved : 7;
+			unsigned int mode : 1; /* 0-frame,1-field */
 		} b;
 	} tg_enable; /* 0x100 */
 
@@ -203,9 +203,9 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int offset:12;
-			unsigned int reserved:4;
-			unsigned int field_invert:1;
+			unsigned int offset : 12;
+			unsigned int reserved : 4;
+			unsigned int field_invert : 1;
 		} b;
 	} vsync_offset; /* 0x130 */
 
@@ -214,13 +214,11 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int mode:3; /* 011-frame packing progressive
-				format,111-frame packing interlace format */
-			unsigned int inv_filed_polar:1;
-			unsigned int blank_value:16;
-			unsigned int reserved:11;
-			unsigned int addr_sel:1; /* in frame packing
-							interlace mode */
+			unsigned int mode : 3;	/* 011-frame packing progressive format,111-frame packing interlace format */
+			unsigned int inv_filed_polar : 1;
+			unsigned int blank_value : 16;
+			unsigned int reserved : 11;
+			unsigned int addr_sel : 1;	/* in frame packing interlace mode */
 		} b;
 	} hdmi_3d; /* 0x13C */
 
@@ -228,16 +226,14 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int outwidth:1; /* 0-24bit,1-12bit */
-			unsigned int hsync_polar:1; /* 0-act high,1-act low */
-			unsigned int enable:1;
-			unsigned int vsync_polar:1; /* 0-act high,1-act low */
-			unsigned int reserved:4;
-			unsigned int rgb_swap:2; /* 0-RGB[7:0],1-RGB[0:7],
-							2-BGR[7:0],3-BGR[0:7] */
-			unsigned int reserved2:6;
-			unsigned int blk_dis:1;	/* 0-Blank Data,
-						1-Embeded sync CCIR656 */
+			unsigned int outwidth : 1;	/* 0-24bit,1-12bit */
+			unsigned int hsync_polar : 1;	/* 0-active high,1-active low */
+			unsigned int enable : 1;
+			unsigned int vsync_polar : 1;	/* 0-active high,1-active low */
+			unsigned int reserved : 4;
+			unsigned int rgb_swap : 2;	/* 0-RGB[7:0],1-RGB[0:7],2-BGR[7:0],3-BGR[0:7] */
+			unsigned int reserved2 : 6;
+			unsigned int blk_dis : 1;	/* 0-Blank Data,1-Embeded sync CCIR656 */
 		} b;
 	} dvo_set; /* 0x148 */
 
@@ -245,11 +241,11 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int enable:1;
-			unsigned int reserved1:7;
-			unsigned int mode:1;
-			unsigned int reserved2:7;
-			unsigned int inversion:1;
+			unsigned int enable : 1;
+			unsigned int reserved1 : 7;
+			unsigned int mode : 1;
+			unsigned int reserved2 : 7;
+			unsigned int inversion : 1;
 		} b;
 	} cb_enable; /* 0x150 */
 
@@ -267,17 +263,17 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int outwidth:1; /* 0-24bit,1-12bit */
-			unsigned int hsync_polar:1; /* 0-act high,1-act low */
-			unsigned int enable:1;
-			unsigned int vsync_polar:1; /* 0-act high,1-act low */
+			unsigned int outwidth : 1;	/* 0-24bit,1-12bit */
+			unsigned int hsync_polar : 1;	/* 0-active high,1-active low */
+			unsigned int enable : 1;
+			unsigned int vsync_polar : 1;	/* 0-active high,1-active low */
 		} b;
 	} lvds_ctrl; /* 0x180 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int pix:2; /* 0-YUV444,1-RGB,2-YUV422,3-RGB */
+			unsigned int pix : 2;	/* 0-YUV444,1-RGB,2-YUV422,3-RGB */
 		} b;
 	} lvds_ctrl2; /* 0x184 */
 
@@ -286,9 +282,9 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int praf:8;
-			unsigned int pbaf:8;
-			unsigned int yaf:8;
+			unsigned int praf : 8;
+			unsigned int pbaf : 8;
+			unsigned int yaf : 8;
 		} b;
 	} contrast; /* 0x1B8 */
 
@@ -304,45 +300,45 @@ struct govrh_regs {
 	union {
 		unsigned int val;
 		struct {
-			unsigned int mode:1;	/* 1: YUV2RGB, 0: RGB2YUV */
-			unsigned int clamp:1;	/* 0:Y,1:Y-16 */
+			unsigned int mode : 1;	/* 1: YUV2RGB, 0: RGB2YUV */
+			unsigned int clamp : 1;	/* 0:Y,1:Y-16 */
 		} b;
 	} csc_mode; /* 0x1E0 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int dvo:1;
-			unsigned int vga:1;
-			unsigned int reserved1:1;
-			unsigned int dac_clkinv:1;
-			unsigned int blank_zero:1;
-			unsigned int disp:1;
-			unsigned int lvds:1;
-			unsigned int hdmi:1;
-			unsigned int rgb_mode:2; /*0-YUV,1-RGB24,2-1555,3-565*/
+			unsigned int dvo : 1;
+			unsigned int vga : 1;
+			unsigned int reserved1 : 1;
+			unsigned int dac_clkinv : 1;
+			unsigned int blank_zero : 1;
+			unsigned int disp : 1;
+			unsigned int lvds : 1;
+			unsigned int hdmi : 1;
+			unsigned int rgb_mode : 2; /* 0-YUV, 1-RGB24, 2-1555, 3-565 */
 		} b;
 	} yuv2rgb; /* 0x1E4 */
 
 	unsigned int h264_input_en;	/* 0x1E8 */
 	unsigned int reserved9;
-	unsigned int lvds_clkinv;	/* 0x1F0 */
+	unsigned int lvds_clkinv; 	/* 0x1F0 */
 	unsigned int hscale_up;		/* 0x1F4 */
 	union {
 		unsigned int val;
 		struct {
-			unsigned int mode:3; /* 0:888,1:555,2:666,3:565,4:ori */
-			unsigned int reserved:5;
-			unsigned int ldi:1; /* 0:shift right,1:shift left */
+			unsigned int mode : 3;	/* 0:888,1:555,2:666,3:565,4:original */
+			unsigned int reserved : 5;
+			unsigned int ldi : 1;	/* 0:shift right,1:shift left */
 		} b;
 	} igs_mode; /* 0x1F8 */
 
 	union {
 		unsigned int val;
 		struct {
-			unsigned int mode:3; /* 0:888,1:555,2:666,3:565,4:ori */
-			unsigned int reserved:5;
-			unsigned int ldi:1; /* 0:shift right,1:shift left */
+			unsigned int mode : 3;	/* 0:888,1:555,2:666,3:565,4:original */
+			unsigned int reserved : 5;
+			unsigned int ldi : 1;	/* 0:shift right,1:shift left */
 		} b;
 	} igs_mode2; /* 0x1FC */
 };

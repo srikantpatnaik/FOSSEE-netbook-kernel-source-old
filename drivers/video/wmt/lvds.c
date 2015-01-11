@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/lvds.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,7 +40,6 @@
 /*----------EXPORTED PRIVATE VARIABLES are defined in lvds.h  -------------*/
 /*----------------------- INTERNAL PRIVATE VARIABLES - -----------------------*/
 /* int  lvds_xxx;        *//*Example*/
-struct lvds_base_regs *lvds_regs = (void *) LVDS_BASE_ADDR;
 
 /*--------------------- INTERNAL PRIVATE FUNCTIONS ---------------------------*/
 /* void lvds_xxx(void); *//*Example*/
@@ -50,22 +49,22 @@ void lvds_set_power_down(int pwrdn)
 {
 	DBG_DETAIL("(%d)\n", pwrdn);
 
-	lvds_regs->test.b.pd = pwrdn;
+	vppif_reg32_write(LVDS_PD, pwrdn);
 	mdelay(1);
-	lvds_regs->test2.b.pd_l2ha = pwrdn;
+	vppif_reg32_write(LVDS_PD_L2HA, pwrdn);
 }
 
 void lvds_set_enable(vpp_flag_t enable)
 {
 	DBG_DETAIL("(%d)\n", enable);
-	lvds_regs->test.b.tre_en = (enable) ? 0 : 1;
-	lvds_regs->test2.b.mode = (enable) ? 1 : 0;
-	lvds_regs->test2.b.resa_en = (enable) ? 0 : 1;
+	vppif_reg32_write(LVDS_TRE_EN, (enable) ? 0 : 1);
+	vppif_reg32_write(LVDS_MODE, (enable) ? 1 : 0);
+	vppif_reg32_write(LVDS_RESA_EN, (enable) ? 0 : 1);
 #ifdef CONFIG_UBOOT
 	if ((enable) && (lcd_get_lvds_id() == LCD_LVDS_1024x600)) {
 		/* GPIO10 VDD_EN->CLK delay 16->38ms */
-		outl(inl(GPIO_BASE_ADDR + 0x80) | BIT10, GPIO_BASE_ADDR + 0x80);
-		outl(inl(GPIO_BASE_ADDR + 0xC0) | BIT10, GPIO_BASE_ADDR + 0xC0);
+		REG32_VAL(GPIO_BASE_ADDR + 0x80) |= 0x400;
+		REG32_VAL(GPIO_BASE_ADDR + 0xC0) |= 0x400;
 		mdelay(16);
 	}
 #endif
@@ -73,7 +72,7 @@ void lvds_set_enable(vpp_flag_t enable)
 
 int lvds_get_enable(void)
 {
-	return lvds_regs->test2.b.mode;
+	return vppif_reg32_read(LVDS_MODE);
 }
 
 void lvds_set_rgb_type(int bpp)
@@ -103,8 +102,8 @@ void lvds_set_rgb_type(int bpp)
 #if 1 /* IGS default */
 	mode = 4;
 #endif
-	lvds_regs->status.b.test = mode_change;
-	lvds_regs->igs.b.bpp_type = mode;
+	vppif_reg32_write(LVDS_TEST, mode_change);
+	vppif_reg32_write(LVDS_IGS_BPP_TYPE, mode);
 }
 
 vdo_color_fmt lvds_get_colfmt(void)
@@ -115,14 +114,15 @@ vdo_color_fmt lvds_get_colfmt(void)
 void lvds_set_sync_polar(int h_lo, int v_lo)
 {
 	DBG_DETAIL("(%d,%d)\n", h_lo, v_lo);
-	lvds_regs->set.b.hsync_polar_lo = h_lo;
-	lvds_regs->set.b.vsync_polar_lo = v_lo;
+
+	vppif_reg32_write(LVDS_HSYNC_POLAR_LO, h_lo);
+	vppif_reg32_write(LVDS_VSYNC_POLAR_LO, v_lo);
 }
 
 void lvds_get_sync_polar(int *hsync_hi, int *vsync_hi)
 {
-	*hsync_hi = (lvds_regs->set.b.hsync_polar_lo) ? 0 : 1;
-	*vsync_hi = (lvds_regs->set.b.vsync_polar_lo) ? 0 : 1;
+	*hsync_hi = (vppif_reg32_read(LVDS_HSYNC_POLAR_LO)) ? 0 : 1;
+	*vsync_hi = (vppif_reg32_read(LVDS_VSYNC_POLAR_LO)) ? 0 : 1;
 }
 
 /*----------------------- Module API --------------------------------------*/
@@ -132,13 +132,15 @@ void lvds_reg_dump(void)
 	vpp_reg_dump(REG_LVDS_BEGIN, REG_LVDS_END-REG_LVDS_BEGIN);
 
 	DPRINT("---------- LVDS common ----------\n");
-	DPRINT("test %d,dual chan %d,inv clk %d\n", lvds_regs->status.b.test,
-		lvds_regs->status.b.dual_channel, lvds_regs->status.b.inv_clk);
+	DPRINT("test %d,dual chan %d,inv clk %d\n", vppif_reg32_read(LVDS_TEST),
+		vppif_reg32_read(LVDS_DUAL_CHANNEL),
+		vppif_reg32_read(LVDS_INV_CLK));
 	DPRINT("ldi shift left %d,IGS bpp type %d\n",
-		lvds_regs->igs.b.ldi_shift_left, lvds_regs->igs.b.bpp_type);
-	DPRINT("rsen %d,pll ready %d\n", lvds_regs->detect.b.rsen,
-		lvds_regs->detect.b.pll_ready);
-	DPRINT("pwr dn %d\n", lvds_regs->test.b.pd);
+		vppif_reg32_read(LVDS_LDI_SHIFT_LEFT),
+		vppif_reg32_read(LVDS_IGS_BPP_TYPE));
+	DPRINT("rsen %d,pll ready %d\n", vppif_reg32_read(LVDS_RSEN),
+		vppif_reg32_read(LVDS_PLL_READY));
+	DPRINT("pwr dn %d\n", vppif_reg32_read(LVDS_PD));
 }
 
 #ifdef CONFIG_PM
@@ -152,7 +154,7 @@ void lvds_suspend(int sts)
 	case 1: /* disable tg */
 		break;
 	case 2:	/* backup register */
-		lvds_pd_bk = lvds_regs->test.b.pd;
+		lvds_pd_bk = vppif_reg32_read(LVDS_PD);
 		lvds_set_power_down(1);
 		lvds_pm_bk = vpp_backup_reg(REG_LVDS_BEGIN,
 			(REG_LVDS_END-REG_LVDS_BEGIN));
@@ -187,15 +189,15 @@ void lvds_resume(int sts)
 
 void lvds_init(void)
 {
-	lvds_regs->level.b.level = 1;
-	lvds_regs->level.b.update = 1;
-	lvds_regs->test.b.pll_r_f = 1;
-	lvds_regs->test.b.pll_cpset = 1;
-	lvds_regs->test.b.tre_en = 0;
-	lvds_regs->test.b.vbg_sel = 2;
-	lvds_regs->test.b.drv_pdmode = 0;
-	lvds_regs->igs.b.ldi_shift_left = 1;
-	lvds_regs->test2.val = 0x31432;
+	vppif_reg32_write(LVDS_REG_LEVEL, 1);
+	vppif_reg32_write(LVDS_REG_UPDATE, 1);
+	vppif_reg32_write(LVDS_PLL_R_F, 0x1);
+	vppif_reg32_write(LVDS_PLL_CPSET, 0x1);
+	vppif_reg32_write(LVDS_TRE_EN, 0x0);
+	vppif_reg32_write(LVDS_VBG_SEL, 2);
+	vppif_reg32_write(LVDS_DRV_PDMODE, 0);
+	vppif_reg32_write(LVDS_LDI_SHIFT_LEFT, 1);
+	vppif_reg32_out(REG_LVDS_TEST2, 0x31432);
 }
 
 #endif /* WMT_FTBLK_LVDS */

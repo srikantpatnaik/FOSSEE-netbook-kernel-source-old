@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/hdmi.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ extern	"C" {
 #define HDMI_PLUG_DELAY	        300	/* plug stable delay ms */
 #define HDMI_CP_TIME		3	/* should more than 2 seconds */
 
-enum hdmi_packet_type_t {
+typedef enum {
 	HDMI_PACKET_NULL = 0x0,
 	HDMI_PACKET_AUD_CLOCK_REGEN = 0x1,
 	HDMI_PACKET_AUD_SAMPLE = 0x2,
@@ -55,7 +55,7 @@ enum hdmi_packet_type_t {
 	HDMI_PACKET_INFOFRAME_SRC_PRODUCT_DESC = 0x83,
 	HDMI_PACKET_INFOFRAME_AUDIO = 0x84,
 	HDMI_PACKET_INFOFRAME_MPEG_SOURCE = 0x85
-};
+} hdmi_packet_type_t;
 
 /* color depth (CD field) */
 #define HDMI_COLOR_DEPTH_24	0x4
@@ -124,7 +124,7 @@ enum hdmi_packet_type_t {
 #define HDMI_PIXEL_REP_10	0x9
 
 /* Video Code */
-enum hdmi_video_code_t {
+typedef enum {
 	HDMI_UNKNOW = 0,
 	HDMI_640x480p60_4x3,
 	HDMI_720x480p60_4x3,
@@ -161,10 +161,10 @@ enum hdmi_video_code_t {
 	HDMI_1920x1080p25_16x9,
 	HDMI_1920x1080p30_16x9,
 	HDMI_VIDEO_CODE_MAX
-};
+} hdmi_video_code_t;
 
 /* Audio Channel Count (Audio InfoFrame CC0/CC1/CC2) */
-enum hdmi_audio_channel_count_t {
+typedef enum {
 	HDMI_AUD_CHAN_REF_STM = 0,
 	HDMI_AUD_CHAN_2CH,
 	HDMI_AUD_CHAN_3CH,
@@ -173,7 +173,7 @@ enum hdmi_audio_channel_count_t {
 	HDMI_AUD_CHAN_6CH,
 	HDMI_AUD_CHAN_7CH,
 	HDMI_AUD_CHAN_8CH
-};
+} hdmi_audio_channel_count_t;
 
 /* Audio Coding type (Audio InfoFrame CT0/CT1/CT2/CT3) */
 #define HDMI_AUD_TYPE_REF_STM		0x0
@@ -214,7 +214,7 @@ enum hdmi_audio_channel_count_t {
 
 /*-------------------- EXPORTED PRIVATE TYPES---------------------------------*/
 /* typedef  void  hdmi_xxx_t;  *//*Example*/
-struct hdmi_info_t {
+typedef struct {
 	/* video */
 	vdo_color_fmt outfmt;
 	int vic;
@@ -226,34 +226,34 @@ struct hdmi_info_t {
 	/* option */
 	int option;
 
-};
+} hdmi_info_t;
 
 #define HDMI_VIC_INTERLACE	BIT(0)
 #define HDMI_VIC_PROGRESS	0
 #define HDMI_VIC_4x3		BIT(1)
 #define HDMI_VIC_16x9		0
 
-struct hdmi_vic_t {
+typedef struct {
 	unsigned short resx;
 	unsigned short resy;
 	char freq;
 	char option;
-};
+} hdmi_vic_t;
 
-struct hdmi_cp_t {
+typedef struct {
 	void (*init)(void);
 	void (*enable)(int on);
 	int (*poll)(void);
 	void (*dump)(void);
 	int (*interrupt)(void);
 	void (*get_bksv)(unsigned int *bksv);
-};
+} hdmi_cp_t;
 
 /*-------------------- EXPORTED PRIVATE VARIABLES ---------------------------*/
 #ifdef VPP_C
 #define EXTERN
 
-const struct hdmi_vic_t hdmi_vic_info[HDMI_VIDEO_CODE_MAX] = {
+const hdmi_vic_t hdmi_vic_info[HDMI_VIDEO_CODE_MAX] = {
 	{ 0, 0, 0, 0 },	/* HDMI_UNKNOW = 0 */
 	{ 640, 480, 60, HDMI_VIC_4x3 },	/* HDMI_640x480p60_4x3 */
 	{ 720, 480, 60, HDMI_VIC_4x3 },	/* HDMI_720x480p60_4x3 */
@@ -293,19 +293,12 @@ const struct hdmi_vic_t hdmi_vic_info[HDMI_VIDEO_CODE_MAX] = {
 #else
 #define EXTERN   extern
 
-EXTERN const struct hdmi_vic_t hdmi_vic_info[HDMI_VIDEO_CODE_MAX];
+EXTERN const hdmi_vic_t hdmi_vic_info[HDMI_VIDEO_CODE_MAX];
 #endif /* ifdef HDMI_C */
 
-EXTERN struct hdmi_cp_t *hdmi_cp;
+EXTERN hdmi_cp_t *hdmi_cp;
 EXTERN int hdmi_ri_tm_cnt;
-EXTERN struct hdmi_info_t hdmi_info;
-
-#ifdef VPP_C
-EXPORT_SYMBOL(hdmi_cp);
-EXPORT_SYMBOL(hdmi_ri_tm_cnt);
-EXPORT_SYMBOL(hdmi_regs1);
-EXPORT_SYMBOL(hdmi_regs2);
-#endif
+EXTERN hdmi_info_t hdmi_info;
 
 /* EXTERN int      hdmi_xxx; *//*Example*/
 #undef EXTERN
@@ -324,7 +317,7 @@ void hdmi_set_avmute(vpp_flag_t mute);
 void hdmi_set_dvi_enable(vpp_flag_t enable);
 void hdmi_set_cp_enable(vpp_flag_t enable);
 int hdmi_check_cp_int(void);
-void hdmi_config(struct hdmi_info_t *info);
+void hdmi_config(hdmi_info_t *info);
 int hdmi_DDC_read(char addr, int index, char *buf, int length);
 int hdmi_get_plugin(void);
 int hdmi_get_plug_status(void);

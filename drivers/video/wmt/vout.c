@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/vout.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2012  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,60 +40,77 @@
 /*----------EXPORTED PRIVATE VARIABLES are defined in vout.h  -------------*/
 /*----------------------- INTERNAL PRIVATE VARIABLES - -----------------------*/
 /* int  vo_xxx;        *//*Example*/
-struct vout_t *vout_array[VPP_VOUT_NUM];
-struct vout_inf_t *vout_inf_array[VOUT_INF_MODE_MAX];
-struct vout_dev_t *vout_dev_list;
+vout_t *vout_array[VPP_VOUT_NUM];
+vout_inf_t *vout_inf_array[VOUT_INF_MODE_MAX];
+vout_dev_t *vout_dev_list;
 
 /*--------------------- INTERNAL PRIVATE FUNCTIONS ---------------------------*/
 /* void vo_xxx(void); *//*Example*/
 
 /*----------------------- Function Body --------------------------------------*/
 /*----------------------- vout API --------------------------------------*/
-void vout_register(int no, struct vout_t *vo)
+void vout_print_entry(vout_t *vo)
+{
+	MSG(" ===== vout entry =====\n");
+	MSG("0x%x\n", (int)vo);
+	if (vo == 0)
+		return;
+
+	MSG("num %d,fix 0x%x,var 0x%x\n", vo->num, vo->fix_cap, vo->var_cap);
+	MSG("inf 0x%x,dev 0x%x,ext_dev 0x%x\n", (int)vo->inf,
+		(int)vo->dev, (int)vo->ext_dev);
+	MSG("resx %d,resy %d,pixclk %d\n", vo->resx, vo->resy, vo->pixclk);
+	MSG("status 0x%x,option %d,%d,%d\n", vo->status,
+		vo->option[0], vo->option[1], vo->option[2]);
+
+	if (vo->inf) {
+		MSG(" ===== inf entry =====\n");
+		MSG("mode %d, %s\n",
+			vo->inf->mode, vout_inf_str[vo->inf->mode]);
+	}
+
+	if (vo->dev) {
+		MSG(" ===== dev entry =====\n");
+		MSG("name %s,inf %d,%s\n", vo->dev->name,
+			vo->dev->mode, vout_inf_str[vo->dev->mode]);
+		MSG("vout 0x%x,capability 0x%x\n",
+			(int)vo->dev->vout, vo->dev->capability);
+	}
+}
+
+void vout_register(int no, vout_t *vo)
 {
 	if (no >= VPP_VOUT_NUM)
 		return;
 
 	vo->num = no;
 	vo->govr = (void *) p_govrh;
-	vo->status = VPP_VOUT_STS_REGISTER;
-	vo->info = 0;
+	vo->status = VPP_VOUT_STS_REGISTER + VPP_VOUT_STS_BLANK;
 	vout_array[no] = vo;
 }
 
-struct vout_t *vout_get_entry(int no)
+vout_t *vout_get_entry(int no)
 {
 	if (no >= VPP_VOUT_NUM)
 		return 0;
 	return vout_array[no];
 }
-EXPORT_SYMBOL(vout_get_entry);
 
-struct vout_info_t *vout_get_info_entry(int no)
+vout_info_t *vout_get_info_entry(int no)
 {
-	struct vout_info_t *info;
-	struct vout_t *vout;
-	int i, j;
+	int i;
 
 	if (no >= VPP_VOUT_NUM)
 		return 0;
 
-	for (i = 0; i < VPP_VOUT_INFO_NUM; i++) {
-		info = vout_info[i];
-		if (!info)
-			break;
-		for (j = 0; j < VPP_VOUT_NUM; j++) {
-			vout = info->vout[j];
-			if (vout == 0)
-				break;
-			if (vout->num == no)
-				return info;
-		}
+	for (i = 0; i < VPP_VOUT_NUM; i++) {
+		if (vout_info[i].vo_mask & (0x1 << no))
+			return &vout_info[i];
 	}
 	return 0;
 }
 
-void vout_change_status(struct vout_t *vo, int mask, int sts)
+void vout_change_status(vout_t *vo, int mask, int sts)
 {
 	DBG_DETAIL("(0x%x,%d)\n", mask, sts);
 	if (sts)
@@ -107,9 +124,7 @@ void vout_change_status(struct vout_t *vo, int mask, int sts)
 			vo->status &= ~(VPP_VOUT_STS_EDID +
 				VPP_VOUT_STS_CONTENT_PROTECT);
 			vo->edid_info.option = 0;
-#ifdef __KERNEL__
 			vpp_netlink_notify_cp(0);
-#endif
 		}
 		break;
 	default:
@@ -117,9 +132,9 @@ void vout_change_status(struct vout_t *vo, int mask, int sts)
 	}
 }
 
-int vout_query_inf_support(int no, enum vout_inf_mode_t mode)
+int vout_query_inf_support(int no, vout_inf_mode_t mode)
 {
-	struct vout_t *vo;
+	vout_t *vo;
 
 	if (no >= VPP_VOUT_NUM)
 		return 0;
@@ -132,7 +147,7 @@ int vout_query_inf_support(int no, enum vout_inf_mode_t mode)
 }
 
 /*----------------------- vout interface API --------------------------------*/
-int vout_inf_register(enum vout_inf_mode_t mode, struct vout_inf_t *inf)
+int vout_inf_register(vout_inf_mode_t mode, vout_inf_t *inf)
 {
 	if (mode >= VOUT_INF_MODE_MAX) {
 		DBG_ERR("vout interface mode invalid %d\n", mode);
@@ -146,7 +161,7 @@ int vout_inf_register(enum vout_inf_mode_t mode, struct vout_inf_t *inf)
 	return 0;
 } /* End of vout_register */
 
-struct vout_inf_t *vout_inf_get_entry(enum vout_inf_mode_t mode)
+vout_inf_t *vout_inf_get_entry(vout_inf_mode_t mode)
 {
 	if (mode >= VOUT_INF_MODE_MAX) {
 		DBG_ERR("vout interface mode invalid %d\n", mode);
@@ -156,9 +171,9 @@ struct vout_inf_t *vout_inf_get_entry(enum vout_inf_mode_t mode)
 }
 
 /*----------------------- vout device API -----------------------------------*/
-int vout_device_register(struct vout_dev_t *ops)
+int vout_device_register(vout_dev_t *ops)
 {
-	struct vout_dev_t *list;
+	vout_dev_t *list;
 
 	if (vout_dev_list == 0) {
 		vout_dev_list = ops;
@@ -173,14 +188,14 @@ int vout_device_register(struct vout_dev_t *ops)
 	return 0;
 }
 
-struct vout_dev_t *vout_get_device(struct vout_dev_t *ops)
+vout_dev_t *vout_get_device(vout_dev_t *ops)
 {
 	if (ops == 0)
 		return vout_dev_list;
 	return ops->next;
 }
 
-struct vout_t *vout_get_entry_adapter(enum vout_mode_t mode)
+vout_t *vout_get_entry_adapter(vout_mode_t mode)
 {
 	int no;
 
@@ -206,7 +221,7 @@ struct vout_t *vout_get_entry_adapter(enum vout_mode_t mode)
 	return vout_get_entry(no);
 }
 
-struct vout_inf_t *vout_get_inf_entry_adapter(enum vout_mode_t mode)
+vout_inf_t *vout_get_inf_entry_adapter(vout_mode_t mode)
 {
 	int no;
 
@@ -232,107 +247,101 @@ struct vout_inf_t *vout_get_inf_entry_adapter(enum vout_mode_t mode)
 	return vout_inf_get_entry(no);
 }
 
-enum vpp_vout_s vout_get_mode_adapter(struct vout_t *vout)
+int vout_info_add_entry(vout_t *vo)
 {
-	enum vpp_vout_s mode;
-
-	switch (vout->inf->mode) {
-	case VOUT_INF_DVI:
-		mode = VPP_VOUT_DVI;
-		if (vout->dev && (strcmp("LCD", vout->dev->name) == 0))
-			mode = VPP_VOUT_LCD;
-		break;
-	case VOUT_INF_HDMI:
-		mode = VPP_VOUT_HDMI;
-		break;
-	case VOUT_INF_LVDS:
-		mode = VPP_VOUT_LVDS;
-		break;
-	default:
-		mode = VPP_VOUT_NONE;
-		break;
-	}
-	return mode;
-}
-
-int vout_info_add_entry(int no, struct vout_t *vo)
-{
-	struct vout_info_t *info;
+	vout_info_t *p;
 	int i = 0;
 
-	if ((vo == 0) || (vo->info))
+	if (vo == 0) /* invalid */
 		return 0;
 
-	info = vout_info[no];
-	info->num = no;
-	if (vo->num < VPP_VOUT_NUM) { /* not virtual vout */
-		for (i = 0; i < VPP_VOUT_NUM; i++) {
-			if (info->vout[i] == 0) {
-				info->vout[i] = vo;
-				vo->info = info;
-				break;
-			} else {
-				if (info->vout[i] == vo) /* exist */
+	if (vo->inf) {
+		switch (vo->inf->mode) {
+		case VOUT_INF_DVI:
+		case VOUT_INF_LVDS:
+			vo->govr = p_govrh2;
+			break;
+		default:
+			vo->govr = p_govrh;
+			break;
+		}
+	}
+
+	if (g_vpp.virtual_display) {
+		if (vo->inf)
+			i = 1;
+	} else {
+		if (vo->inf == 0) /* invalid */
+			return 0;
+
+		if (g_vpp.dual_display) {
+			for (i = 0; i < VPP_VOUT_INFO_NUM; i++) {
+				p = &vout_info[i];
+				if (p->vo_mask == 0) /* no use */
+					break;
+
+				if (p->vo_mask & (0x1 << vo->num)) /* exist */
+					return i;
+
+				if (vo->govr && (p->govr_mod ==
+					((vpp_mod_base_t *)(vo->govr))->mod))
 					break;
 			}
 		}
 	}
 
-	if (i == 0) { /* new */
-		info->resx = vo->resx;
-		info->resy = vo->resy;
-		info->resx_virtual = vpp_calc_align(info->resx, 4);
-		info->resy_virtual = info->resy;
-		info->fps = (int) vo->fps;
-		DBG_MSG("new %dx%d@%d\n", info->resx, info->resy, info->fps);
+	if (i >= VPP_VOUT_INFO_NUM) {
+		DBG_ERR("full\n");
+		return 0;
 	}
-
-	DBG_MSG("info %d,%dx%d@%d\n", no, info->resx, info->resy, info->fps);
-	return no;
+	p = &vout_info[i];
+	p->num = i;
+	if (p->vo_mask == 0) {
+		p->resx = vo->resx;
+		p->resy = vo->resy;
+		p->resx_virtual = vpp_calc_align(p->resx, 4);
+		p->resy_virtual = p->resy;
+		p->fps = (int) vo->pixclk;
+		p->govr_mod = (vo->govr) ?
+			((vpp_mod_base_t *)vo->govr)->mod : VPP_MOD_MAX;
+		p->govr = vo->govr;
+	}	
+	p->vo_mask |= (0x1 << vo->num);
+	DBG_MSG("info %d,vo mask 0x%x,%s,%dx%d@%d\n", i, p->vo_mask,
+		vpp_mod_str[p->govr_mod], p->resx, p->resy, p->fps);
+	return i;
 }
 
-struct vout_info_t *vout_info_get_entry(int no)
+vout_info_t *vout_info_get_entry(int no)
 {
-	if (no >= VPP_VOUT_INFO_NUM)
-		return 0;
-	return vout_info[no];
+	if (g_vpp.dual_display == 0)
+		return &vout_info[0];
+
+	if ((no >= VPP_VOUT_INFO_NUM) || (vout_info[no].vo_mask == 0))
+		no = 0;
+
+	return &vout_info[no];
 }
 
 void vout_info_set_fixed_timing(int no, struct fb_videomode *vmode)
 {
-	struct vout_info_t *info;
+	vout_info_t *info;
 
 	DBG_MSG("(%d)\n", no);
 
 	info = vout_info_get_entry(no);
-	if (!info->fixed_vmode) {
-		info->fixed_vmode =
-			kmalloc(sizeof(struct fb_videomode), GFP_KERNEL);
-		if (!info->fixed_vmode)
-			return;
-	}
-	memcpy(info->fixed_vmode, vmode, sizeof(struct fb_videomode));
+	info->fixed_vmode = vmode;
 }
 
-struct govrh_mod_t *vout_info_get_govr(int no)
+govrh_mod_t *vout_info_get_govr(int no)
 {
-	struct vout_info_t *info;
-	struct govrh_mod_t *govr = 0;
-	int i;
+	vout_info_t *info;
+	govrh_mod_t *govr;
 
-	info = vout_info[no];
-	if (!info)
-		return 0;
-
-	for (i = 0; i < VPP_VOUT_NUM; i++) {
-		if (info->vout[i]) {
-			if (govr == 0)
-				govr = info->vout[i]->govr;
-			if (info->vout[i]->status & VPP_VOUT_STS_ACTIVE) {
-				govr = info->vout[i]->govr;
-				break;
-			}
-		}
+	info = vout_info_get_entry(no);
+	govr = info->govr;
+	if (g_vpp.virtual_display || (g_vpp.dual_display == 0)) {
+		govr = (hdmi_get_plugin()) ? p_govrh : p_govrh2;
 	}
 	return govr;
 }
@@ -341,7 +350,7 @@ int vout_check_ratio_16_9(unsigned int resx, unsigned int resy)
 {
 	int val;
 
-	val = (resy) ? ((resx * 10) / resy) : 0;
+	val = (resx * 10) / resy;
 	return (val >= 15) ? 1 : 0;
 }
 
@@ -354,20 +363,17 @@ struct fb_videomode *vout_get_video_mode(int vout_num,
 	int d;
 	int resx, resy, fps;
 	unsigned int pixel_clock, diff_pixel_clock = -1;
-	struct vout_t *vo = 0;
+	vout_t *vo = 0;
 	char *edid = 0;
 
 	resx = vmode->xres;
 	resy = vmode->yres;
 	fps = vmode->refresh;
-#ifdef DEBUG
-	pixel_clock = (vmode->pixclock) ? PICOS2KHZ(vmode->pixclock) * 1000 : 0;
-	DBG_MSG("%d,%dx%d@%d,%d,0x%x\n", vout_num, resx, resy, fps,
-		pixel_clock, option);
-#endif
 	pixel_clock = vmode->pixclock;
+	DBG_MSG("%d,%dx%d@%d,%d,0x%x\n", vout_num, resx, resy, fps,
+		(int) PICOS2KHZ(vmode->pixclock) * 1000, option);
 
-	/* EDID detail timing */
+	/* EDID detail timing */	
 	if (option & VOUT_MODE_OPTION_EDID) {
 		unsigned int opt;
 		struct fb_videomode *edid_vmode;
@@ -457,51 +463,16 @@ struct fb_videomode *vout_get_video_mode(int vout_num,
 	return best;
 }
 
-int vout_get_width_height(int fbnum, int *width, int *height)
-{
-	struct vout_info_t *info;
-	int i;
-
-	info = vout_info_get_entry(fbnum);
-	*width = 0;
-	*height = 0;
-	for (i = 0; i < VPP_VOUT_NUM; i++) {
-		struct vout_t *vout;
-
-		vout = info->vout[i];
-		if (vout) {
-			if ((vout->inf->mode == VOUT_INF_DVI) && p_lcd) {
-				if (info->fixed_width != 0 && info->fixed_height != 0) {
-					*width = info->fixed_width;
-					*height = info->fixed_height;
-				} else {
-					*width = p_lcd->width;
-					*height = p_lcd->height;
-				}
-				break;
-			}
-			if (vout_chkplug(vout->num)) {
-				if (vout_get_edid_option(vout->num)
-					& EDID_OPT_VALID) {
-					*width = vout->edid_info.width;
-					*height = vout->edid_info.height;
-					break;
-				}
-			}
-		}
-	}
-	return 0;
-}
-
 #ifndef CONFIG_VPOST
 int vout_find_match_mode(int fbnum,
 				struct fb_videomode *vmode, int match)
 {
-	struct vout_info_t *info;
+	vout_info_t *info;
 	struct fb_videomode *p;
 	int no = VPP_VOUT_NUM;
 	unsigned int option;
 	int i;
+	unsigned int vo_mask;
 
 	DBG_DETAIL("(%d)\n", fbnum);
 
@@ -520,21 +491,28 @@ int vout_find_match_mode(int fbnum,
 		p = info->fixed_vmode;
 		goto label_find_match;
 	}
-	for (i = 0; i < VPP_VOUT_NUM; i++) {
-		if (info->vout[i]) {
-			int vout_no = info->vout[i]->num;
 
-			if (no == VPP_VOUT_NUM)
-				no = vout_no; /* get first vo */
-			if (vout_chkplug(vout_no)) {
-				no = vout_no;
-				break;
-			}
+	vo_mask = vout_get_mask(info);
+	if (vo_mask == 0 && vmode->pixclock)
+		return 0;
+
+	/* find plugin or first vout */
+	for (i = 0; i < VPP_VOUT_NUM; i++) {
+		if ((vo_mask & (0x1 << i)) == 0)
+			continue;
+
+		if (no == VPP_VOUT_NUM)
+			no = i;		/* get first vo */
+
+		if (vout_chkplug(i)) {
+			no = i;
+			break;
 		}
 	}
+
 	/* resolution match and interlace match */
-	option = VOUT_MODE_OPTION_GREATER + VOUT_MODE_OPTION_LESS;
-	option |= (no == VPP_VOUT_NUM) ? 0 : VOUT_MODE_OPTION_EDID;
+	option = VOUT_MODE_OPTION_GREATER + VOUT_MODE_OPTION_LESS +
+			VOUT_MODE_OPTION_EDID;
 	option |= (vmode->vmode & FB_VMODE_INTERLACED) ?
 		VOUT_MODE_OPTION_INTERLACE : VOUT_MODE_OPTION_PROGRESS;
 	p = vout_get_video_mode(no, vmode, option);
@@ -542,8 +520,8 @@ int vout_find_match_mode(int fbnum,
 		goto label_find_match;
 
 	/* resolution match but interlace not match */
-	option = VOUT_MODE_OPTION_GREATER + VOUT_MODE_OPTION_LESS;
-	option |= (no == VPP_VOUT_NUM) ? 0 : VOUT_MODE_OPTION_EDID;
+	option = VOUT_MODE_OPTION_GREATER + VOUT_MODE_OPTION_LESS +
+			VOUT_MODE_OPTION_EDID;
 	option |= (vmode->vmode & FB_VMODE_INTERLACED) ?
 		VOUT_MODE_OPTION_PROGRESS : VOUT_MODE_OPTION_INTERLACE;
 	p = vout_get_video_mode(no, vmode, option);
@@ -552,8 +530,7 @@ int vout_find_match_mode(int fbnum,
 
 /*	if( !match ){ */
 		/* resolution less best mode */
-		option = VOUT_MODE_OPTION_LESS;
-		option |= (no == VPP_VOUT_NUM) ? 0 : VOUT_MODE_OPTION_EDID;
+		option = VOUT_MODE_OPTION_LESS + VOUT_MODE_OPTION_EDID;
 		p = vout_get_video_mode(no, vmode, option);
 		if (p)
 			goto label_find_match;
@@ -570,7 +547,7 @@ label_find_match:
 #endif
 
 int vout_find_edid_support_mode(
-	struct edid_info_t *info,
+	edid_info_t *info,
 	unsigned int *resx,
 	unsigned int *resy,
 	unsigned int *fps,
@@ -583,8 +560,8 @@ int vout_find_edid_support_mode(
 	struct fb_videomode *p;
 	unsigned int w, h, f, option;
 
-	if ((*resx == 720) && (*resy == 480) && (*fps == 50))
-		*fps = 60;
+    if ((*resx == 720) && (*resy == 480) && (*fps == 50))
+        *fps = 60;
 
 	for (i = 0, cnt = 0; ; i++) {
 		if (vpp_videomode[i].pixclock == 0)
@@ -626,45 +603,91 @@ int vout_find_edid_support_mode(
 }
 
 /*----------------------- vout control API ----------------------------------*/
-void vout_set_framebuffer(struct vout_info_t *info, vdo_framebuf_t *fb)
+void vout_set_framebuffer(unsigned int mask, vdo_framebuf_t *fb)
 {
 	int i;
-	struct vout_t *vo;
+	vout_t *vo;
 
-	if (!info)
+	if (mask == 0)
 		return;
 
 	for (i = 0; i < VPP_VOUT_NUM; i++) {
-		vo = info->vout[i];
-		if (vo == 0)
-			break;
-		if (vo->govr)
+		if ((mask & (0x1 << i)) == 0)
+			continue;
+		vo = vout_get_entry(i);
+		if (vo && (vo->govr))
 			vo->govr->fb_p->set_framebuf(fb);
 	}
 }
 
-int vout_set_blank(int no, enum vout_blank_t arg)
+void vout_set_tg_enable(unsigned int mask, int enable)
 {
-	struct vout_t *vo;
+	int i;
+	vout_t *vo;
 
-	DBG_DETAIL("(%d,%d)\n", no, arg);
+	if (mask == 0)
+		return;
 
-	vo = vout_get_entry(no);
-	if (vo && (vo->inf)) {
-		vout_change_status(vo, VPP_VOUT_STS_BLANK, arg);
-		vo->inf->blank(vo, arg);
-		if (vo->dev && vo->dev->set_power_down)
-			vo->dev->set_power_down(
-				(arg == VOUT_BLANK_POWERDOWN) ? 1 : 0);
-		if (vo->govr)
-			govrh_set_MIF_enable(vo->govr, (arg) ? 0 : 1);
+	for (i = 0; i < VPP_VOUT_NUM; i++) {
+		if ((mask & (0x1 << i)) == 0)
+			continue;
+		vo = vout_get_entry(i);
+		if (vo && (vo->govr))
+			govrh_set_tg_enable(vo->govr, enable);
+	}
+}
+
+int vout_set_blank(unsigned int mask, vout_blank_t arg)
+{
+	int i;
+	vout_t *vo;
+
+	DBG_DETAIL("(0x%x,%d)\n", mask, arg);
+
+	if (mask == 0)
+		return 0;
+
+	for (i = 0; i < VPP_VOUT_NUM; i++) {
+		if ((mask & (0x1 << i)) == 0)
+			continue;
+
+		vo = vout_get_entry(i);
+		if (vo && (vo->inf)) {
+			vout_change_status(vo, VPP_VOUT_STS_BLANK, arg);
+			vo->inf->blank(vo, arg);
+			if (vo->dev && vo->dev->set_power_down)
+				vo->dev->set_power_down(
+					(arg == VOUT_BLANK_POWERDOWN) ? 1 : 0);
+		}
+	}
+
+	if (1) {
+		int govr_enable_mask, govr_mask;
+		govrh_mod_t *govr;
+
+		govr_enable_mask = 0;
+		for (i = 0; i < VPP_VOUT_NUM; i++) {
+			vo = vout_get_entry(i);
+			if (vo && (vo->govr)) {
+				govr_mask = (vo->govr->mod == VPP_MOD_GOVRH) ?
+						0x1 : 0x2;
+				govr_enable_mask |= (vo->status &
+					VPP_VOUT_STS_BLANK) ? 0 : govr_mask;
+			}
+		}
+		for (i = 0; i < VPP_VOUT_INFO_NUM; i++) {
+			govr = (i == 0) ? p_govrh : p_govrh2;
+			govr_mask = 0x1 << i;
+			govrh_set_MIF_enable(govr,
+				(govr_enable_mask & govr_mask) ? 1 : 0);
+		}
 	}
 	return 0;
 }
 
-int vout_set_mode(int no, enum vout_inf_mode_t mode)
+int vout_set_mode(int no, vout_inf_mode_t mode)
 {
-	struct vout_t *vo;
+	vout_t *vo;
 
 	DBG_DETAIL("(%d,%d)\n", no, mode);
 
@@ -689,58 +712,57 @@ int vout_set_mode(int no, enum vout_inf_mode_t mode)
 	return 0;
 }
 
-int vout_config(struct vout_info_t *info, struct fb_videomode *vmode,
-	vdo_framebuf_t *fb)
+int vout_config(unsigned int mask,
+		vout_info_t *info, struct fb_videomode *vmode)
 {
-	struct vout_t *vo;
+	vout_t *vo;
+	unsigned int govr_mask = 0;
 	int i;
 
-	DBG_DETAIL("\n");
+	DBG_DETAIL("(0x%x)\n", mask);
 
-	if (!vmode && !fb)
+	if (mask == 0)
 		return 0;
 
-	if (vmode) {
-		/* option for interface & device config */
-		info->resx = vmode->xres;
-		info->resy = vmode->yres;
-		info->fps = (vmode->refresh == 59) ? 60 : vmode->refresh;
-		info->option = (vmode->vmode & FB_VMODE_INTERLACED) ?
-						VPP_OPT_INTERLACE : 0;
-		info->option |= (vmode->sync & FB_SYNC_HOR_HIGH_ACT) ?
-						VPP_DVO_SYNC_POLAR_HI : 0;
-		info->option |= (vmode->sync & FB_SYNC_VERT_HIGH_ACT) ?
-						VPP_DVO_VSYNC_POLAR_HI : 0;
-	}
-
+	/* option for interface & device config */
+    info->resx = vmode->xres;
+    info->resy = vmode->yres;
+    info->fps = (vmode->refresh == 59) ? 60 : vmode->refresh;
+	info->option = (vmode->vmode & FB_VMODE_INTERLACED) ?
+					VPP_OPT_INTERLACE : 0;
+	info->option |= (vmode->sync & FB_SYNC_HOR_HIGH_ACT) ?
+					VPP_DVO_SYNC_POLAR_HI : 0;
+	info->option |= (vmode->sync & FB_SYNC_VERT_HIGH_ACT) ?
+					VPP_DVO_VSYNC_POLAR_HI : 0;
 	for (i = 0; i < VPP_VOUT_NUM; i++) {
-		vo = info->vout[i];
+		if ((mask & (0x1 << i)) == 0)
+			continue;
+
+		vo = vout_get_entry(i);
 		if (vo == 0)
-			break;
+			continue;
 
 		if (vo->govr == 0)
 			continue;
 
-		if (vmode) {
+		if ((govr_mask & (0x1 << vo->govr->mod)) == 0) {
 			govrh_set_videomode(vo->govr, vmode);
-
-			if (vo->inf) {
-				vo->inf->config(vo, (int)info);
-				if (vo->dev)
-					vo->dev->config(info);
-			}
+			govr_mask |= (0x1 << vo->govr->mod);
 		}
 
-		if (fb)
-			govrh_set_framebuffer(vo->govr, fb);
+		if (vo->inf) {
+			vo->inf->config(vo, (int)info);
+			if (vo->dev)
+				vo->dev->config(info);
+		}
 	}
 	return 0;
 }
 
 int vout_chkplug(int no)
 {
-	struct vout_t *vo;
-	struct vout_inf_t *inf;
+	vout_t *vo;
+	vout_inf_t *inf;
 	int ret = 0;
 
 	DBG_DETAIL("(%d)\n", no);
@@ -764,10 +786,10 @@ int vout_chkplug(int no)
 	return ret;
 }
 
-int vout_inf_chkplug(int no, enum vout_inf_mode_t mode)
+int vout_inf_chkplug(int no, vout_inf_mode_t mode)
 {
-	struct vout_t *vo;
-	struct vout_inf_t *inf;
+	vout_t *vo;
+	vout_inf_t *inf;
 	int plugin = 0;
 
 	DBG_MSG("(%d,%d)\n", no, mode);
@@ -785,7 +807,7 @@ int vout_inf_chkplug(int no, enum vout_inf_mode_t mode)
 
 char *vout_get_edid(int no)
 {
-	struct vout_t *vo;
+	vout_t *vo;
 	int ret;
 
 	DBG_DETAIL("(%d)\n", no);
@@ -837,7 +859,7 @@ char *vout_get_edid(int no)
 
 int vout_get_edid_option(int no)
 {
-	struct vout_t *vo;
+	vout_t *vo;
 
 	DBG_DETAIL("(%d)\n", no);
 
@@ -860,29 +882,22 @@ int vout_get_edid_option(int no)
 	return vo->edid_info.option;
 }
 
-unsigned int vout_get_mask(struct vout_info_t *vo_info)
+unsigned int vout_get_mask(vout_info_t *vo_info)
 {
-	unsigned int mask;
-	int i;
+	if (g_vpp.dual_display == 0)
+		return VPP_VOUT_ALL;
 
 	if (g_vpp.virtual_display) {
 		if (vo_info->num == 0)
 			return 0;
 		return VPP_VOUT_ALL;
 	}
-
-	mask = 0;
-	for (i = 0; i <= VPP_VOUT_NUM; i++) {
-		if (vo_info->vout[i] == 0)
-			break;
-		mask |= (0x1 << vo_info->vout[i]->num);
-	}
-	return mask;
+	return vo_info->vo_mask;
 }
 
 int vout_check_plugin(int clr_sts)
 {
-	struct vout_t *vo;
+	vout_t *vo;
 	int i;
 	int plugin = 0;
 
@@ -917,25 +932,5 @@ int vout_check_plugin(int clr_sts)
 	}
 	return plugin;
 }
-
-enum vout_tvformat_t vout_get_tvformat(void)
-{
-	char buf[40] = {0};
-	int varlen = 40;
-	enum vout_tvformat_t s_tvformat = TV_MAX;
-
-	if (wmt_getsyspara("wmt.display.tvformat", buf, &varlen) == 0) {
-		if (!strnicmp(buf, "PAL", 3))
-			s_tvformat = TV_PAL;
-		else if (!strnicmp(buf, "NTSC", 4))
-			s_tvformat = TV_NTSC;
-		else
-			s_tvformat = TV_UNDEFINED;
-	} else
-		s_tvformat = TV_UNDEFINED;
-
-	return s_tvformat;
-}
-
 /*--------------------End of Function Body -----------------------------------*/
 #undef VOUT_C

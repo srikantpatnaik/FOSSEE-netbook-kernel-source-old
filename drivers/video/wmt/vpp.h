@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/vpp.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,32 +24,29 @@
 #include "vpp-osif.h"
 #include "./hw/wmt-vpp-hw.h"
 #include "com-vpp.h"
-#ifdef CONFIG_KERNEL
-#include "com-cec.h"
-#endif
 #include "vout.h"
 
 #ifndef VPP_H
 #define VPP_H
 
-#define CONFIG_VPP_SHENZHEN  /* for ShenZhen code */
+/* #define CONFIG_VPP_SHENZHEN */ /* for ShenZhen code */
 
 /* VPP feature config */
 /* #define CONFIG_VPP_DEMO */ /* HDMI EDID, CP disable */
-#ifdef CONFIG_KERNEL
 #define CONFIG_VPP_STREAM_CAPTURE /* stream capture current video display */
 #define CONFIG_VPP_STREAM_BLOCK
-/* #define CONFIG_VPP_DISABLE_PM */ /* disable power management */
-#define CONFIG_VPP_VIRTUAL_DISPLAY /* virtual fb dev */
+#define CONFIG_VPP_STREAM_FIX_RESOLUTION
+#define CONFIG_VPP_STREAM_ROTATE
+/* #define CONFIG_VPP_DISABLE_PM */	/* disable power management */
+#define CONFIG_VPP_VIRTUAL_DISPLAY	/* virtual fb dev */
 #define CONFIG_VPP_NOTIFY
-#endif
-/* #define CONFIG_VPP_DYNAMIC_ALLOC */ /* frame buffer dynamic allocate */
+#define CONFIG_VPP_DYNAMIC_ALLOC  /* frame buffer dynamic allocate */
 
 /* VPP constant define */
 #define VPP_MB_ALLOC_NUM 3
-#define VPP_STREAM_MB_ALLOC_NUM (VPP_MB_ALLOC_NUM * 2)
+#define VPP_STREAM_MB_ALLOC_NUM (VPP_MB_ALLOC_NUM*2)
 
-enum vpp_int_t {
+typedef enum {
 	VPP_INT_NULL = 0,
 	VPP_INT_ALL = 0xffffffff,
 
@@ -81,9 +78,9 @@ enum vpp_int_t {
 
 	VPP_INT_MAX = BIT31,
 
-};
+} vpp_int_t;
 
-enum vpp_int_err_t {
+typedef enum {
 	/* SCL */
 	VPP_INT_ERR_SCL_TG = BIT0,
 	VPP_INT_ERR_SCLR1_MIF = BIT1,
@@ -98,7 +95,7 @@ enum vpp_int_err_t {
 	/* GOVRH */
 	VPP_INT_ERR_GOVRH_MIF = BIT20,
 
-};
+} vpp_int_err_t;
 
 /* VPP FB capability flag */
 #define VPP_FB_FLAG_COLFMT		0xFFFF
@@ -107,7 +104,7 @@ enum vpp_int_err_t {
 #define VPP_FB_FLAG_MEDIA		BIT(18)
 #define VPP_FB_FLAG_FIELD		BIT(19)
 
-struct vpp_fb_base_t {
+typedef struct {
 	vdo_framebuf_t fb;
 	vpp_csc_t csc_mode;
 	int framerate;
@@ -120,16 +117,16 @@ struct vpp_fb_base_t {
 	void (*set_addr)(unsigned int yaddr, unsigned int caddr);
 	void (*get_addr)(unsigned int *yaddr, unsigned int *caddr);
 	void (*set_csc)(vpp_csc_t mode);
-	vdo_color_fmt(*get_color_fmt)(void);
+	vdo_color_fmt (*get_color_fmt)(void);
 	void (*set_color_fmt)(vdo_color_fmt colfmt);
 	void (*fn_view)(int read, vdo_view_t *view);
-};
+} vpp_fb_base_t;
 
 #define VPP_MOD_BASE \
 	vpp_mod_t mod; /* module id*/\
 	void *mmio;	/* regs base address */\
 	unsigned int int_catch; /* interrupt catch */\
-	struct vpp_fb_base_t *fb_p; /* framebuf base pointer */\
+	vpp_fb_base_t *fb_p; /* framebuf base pointer */\
 	unsigned int pm; /* power dev id,bit31-0:power off */\
 	unsigned int *reg_bk; /* register backup pointer */\
 	void  (*init)(void *base); /* module initial */\
@@ -145,43 +142,43 @@ struct vpp_fb_base_t {
 	void (*resume)(int sts) /* module resume */
 /* End of vpp_mod_base_t */
 
-struct vpp_mod_base_t {
+typedef struct {
 	VPP_MOD_BASE;
-};
+} vpp_mod_base_t;
 
 #define VPP_MOD_FLAG_FRAMEBUF	BIT(0)
 #define VPP_MOD_CLK_ON		BIT(31)
 
-enum vpp_scale_mode_t {
+typedef enum {
 	VPP_SCALE_MODE_REC_TABLE, /* old design but 1/32 limit */
 	VPP_SCALE_MODE_RECURSIVE, /*no rec table,not smooth than bilinear mode*/
 	VPP_SCALE_MODE_BILINEAR,/*more smooth but less than 1/2 will drop line*/
 	VPP_SCALE_MODE_ADAPTIVE,/* scl dn 1-1/2 bilinear mode, other rec mode */
 	VPP_SCALE_MODE_MAX
-};
+} vpp_scale_mode_t;
 
-enum vpp_hdmi_audio_inf_t {
+typedef enum {
 	VPP_HDMI_AUDIO_I2S,
 	VPP_HDMI_AUDIO_SPDIF,
 	VPP_HDMI_AUDIO_MAX
-};
+} vpp_hdmi_audio_inf_t;
 
-enum vpp_filter_mode_t {
+typedef enum {
 	VPP_FILTER_SCALE,
 	VPP_FILTER_DEBLOCK,
 	VPP_FILTER_FIELD_DEFLICKER,
 	VPP_FILTER_FRAME_DEFLICKER,
 	VPP_FILTER_MODE_MAX
-};
+} vpp_filter_mode_t;
 
 #define VPP_DBG_PERIOD_NUM	10
-struct vpp_dbg_period_t {
+typedef struct {
 	int index;
 	int period_us[VPP_DBG_PERIOD_NUM];
 	struct timeval pre_tv;
-};
+} vpp_dbg_period_t;
 
-struct vpp_dbg_timer_t {
+typedef struct {
 	struct timeval pre_tv;
 	unsigned int threshold;
 	unsigned int reset;
@@ -189,25 +186,25 @@ struct vpp_dbg_timer_t {
 	unsigned int sum;
 	unsigned int min;
 	unsigned int max;
-};
+} vpp_dbg_timer_t;
 
 #ifdef __KERNEL__
 #define VPP_PROC_NUM		10
-struct vpp_proc_t {
+typedef struct {
 	int (*func)(void *arg); /* function pointer */
 	void *arg; /* function argument */
 	struct list_head list;
-	enum vpp_int_t type; /* interrupt type */
+	vpp_int_t type; /* interrupt type */
 	struct semaphore sem; /* wait sem */
 	int wait_ms; /* wait complete timout (ms) */
 	int work_cnt; /* work counter if 0 then forever */
-};
+} vpp_proc_t;
 
-struct vpp_irqproc_t {
+typedef struct {
 	struct list_head list;
 	struct tasklet_struct tasklet;
 	int ref;
-};
+} vpp_irqproc_t;
 #endif
 
 #ifndef CFG_LOADER
@@ -215,9 +212,11 @@ struct vpp_irqproc_t {
 #endif
 #include "lcd.h"
 
+#ifndef CFG_LOADER
 /* #ifdef WMT_FTBLK_SCL */
 #include "scl.h"
 /* #endif */
+#endif
 /*
 #ifdef WMT_FTBLK_GE
 #include "ge.h"
@@ -239,7 +238,7 @@ struct vpp_irqproc_t {
 #include "edid.h"
 #endif
 
-enum vpp_dbg_level_t {
+typedef enum {
 	VPP_DBGLVL_DISABLE = 0x0,
 	VPP_DBGLVL_SCALE = 1,
 	VPP_DBGLVL_DISPFB = 2,
@@ -249,23 +248,24 @@ enum vpp_dbg_level_t {
 	VPP_DBGLVL_DIAG = 6,
 	VPP_DBGLVL_STREAM = 7,
 	VPP_DBGLVL_ALL = 0xFF,
-};
+} vpp_dbg_level_t;
 
-struct vpp_info_t {
+typedef struct {
 	/* internal parameter */
 	int govrh_preinit;
+	int (*alloc_framebuf)(unsigned int resx, unsigned int resy);
+	int dual_display; /* use 2 govr */
 	int virtual_display;
 	int fb0_bitblit;
 	int fb_manual; /* not check var & internel timing */
 	int fb_recheck; /* recheck for plug but no change res */
 	int govrh_init_yres;
-	int stream_fb;
+	int virtual_display_mode;
 
 	/* hdmi */
-	enum vpp_hdmi_audio_inf_t hdmi_audio_interface; /* 0-I2S, 1-SPDIF */
+	int hdmi_video_mode; /* 0-auto,720,1080 */
+	vpp_hdmi_audio_inf_t hdmi_audio_interface; /* 0-I2S, 1-SPDIF */
 	int hdmi_cp_enable; /* 0-off, 1-on */
-	int hdmi_audio_channel;
-	int hdmi_audio_freq;
 	unsigned int hdmi_ctrl;
 	unsigned int hdmi_audio_pb1;
 	unsigned int hdmi_audio_pb4;
@@ -279,20 +279,17 @@ struct vpp_info_t {
 	int hdmi_certify_flag;
 	int hdmi_sp_mode;
 	int hdmi_disable;
-	int hdmi_ch_change;
 
 	/* alloc frame buffer */
+	unsigned int mb[VPP_MB_ALLOC_NUM];
+	unsigned int mb_y_size;
+	unsigned int mb_fb_size;
 	int mb_colfmt;
 
 	/* debug */
 	int dbg_msg_level; /* debug message level */
 	int dbg_wait;
 	int dbg_flag;
-
-	/* dvi */
-	int dvi_int_disable;
-	int dvi_int_no; /* DVO external board interrupt use GPIOxx */
-	int dvi_i2c_no; /* DVO external board i2c bus id */
 
 #if 0
 	/* HDMI DDC debug */
@@ -308,10 +305,14 @@ struct vpp_info_t {
 	int stream_mb_sync_flag;
 	int stream_mb_index;
 	unsigned int stream_mb[VPP_STREAM_MB_ALLOC_NUM];
+	unsigned int stream_mb_y_size;
 	int stream_mb_cnt;
 	unsigned int stream_sync_cnt;
+#ifdef CONFIG_VPP_STREAM_FIX_RESOLUTION
+	vdo_framebuf_t stream_fb;
 #endif
-};
+#endif
+} vpp_info_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -346,13 +347,11 @@ const unsigned int vpp_csc_parm[VPP_CSC_MAX][7] = {
 	{0x02dc00da, 0x1f88004a, 0x020b1e6d, 0x1e25020b, 0x00011fd0,
 	0x01010101, 0x00000000}, /* RGB2YUV_HDTV_16_235 */
 	{0x02590132, 0x1f530075, 0x02001ead, 0x1e530200, 0x00011fad,
-	0x01010101, 0x00000000}, /* RGB2YUV_JFIF_0_255 */
+	0x00ff00ff, 0x00000000}, /* RGB2YUV_JFIF_0_255 */
 	{0x02590132, 0x1f500075, 0x020b1ea5, 0x1e4a020b, 0x00011fab,
 	0x01010101, 0x00000000}, /* RGB2YUV_SMPTE170M */
 	{0x02ce00d9, 0x1f890059, 0x02001e77, 0x1e380200, 0x00011fc8,
 	0x01010101, 0x00000000}, /* RGB2YUV_SMPTE240M */
-	{0x02780142, 0x1e80007a, 0x04711d0e, 0x1c470471, 0x00001f46,
-	0x01010101, 0x00000000} /* RGB2YUV_JFIF_VT1625 */
 };
 
 const struct fb_videomode vpp_videomode[] = {
@@ -576,31 +575,34 @@ extern const unsigned int vpp_csc_parm[VPP_CSC_MAX][7];
 extern char *vpp_colfmt_str[];
 extern const struct fb_videomode vpp_videomode[];
 extern char *vpp_mod_str[];
-#ifdef CONFIG_VPP_NOTIFY
-extern struct switch_dev vpp_sdev;
-#endif
 #endif
 
-EXTERN struct vpp_info_t g_vpp;
-#ifdef VPP_C
-EXPORT_SYMBOL(g_vpp);
-#endif
+EXTERN vpp_info_t g_vpp;
 
-static inline int vpp_get_hdmi_spdif(void)
+static __inline__ int vpp_get_hdmi_spdif(void)
 {
 	return (g_vpp.hdmi_audio_interface == VPP_HDMI_AUDIO_SPDIF) ? 1 : 0;
 }
 
 /* Internal functions */
 EXTERN int get_key(void);
+EXTERN U8 vppif_reg8_in(U32 offset);
+EXTERN U8 vppif_reg8_out(U32 offset, U8 val);
+EXTERN U16 vppif_reg16_in(U32 offset);
+EXTERN U16 vppif_reg16_out(U32 offset, U16 val);
+EXTERN U32 vppif_reg32_in(U32 offset);
+EXTERN U32 vppif_reg32_out(U32 offset, U32 val);
+EXTERN U32 vppif_reg32_write(U32 offset, U32 mask, U32 shift, U32 val);
+EXTERN U32 vppif_reg32_read(U32 offset, U32 mask, U32 shift);
+EXTERN U32 vppif_reg32_mask(U32 offset, U32 mask, U32 shift);
 EXTERN unsigned int vpp_get_chipid(void);
 
 /* Export functions */
 EXTERN void vpp_mod_unregister(vpp_mod_t mod);
-EXTERN struct vpp_mod_base_t *vpp_mod_register(vpp_mod_t mod, int size,
+EXTERN vpp_mod_base_t *vpp_mod_register(vpp_mod_t mod, int size,
 	unsigned int flags);
-EXTERN struct vpp_mod_base_t *vpp_mod_get_base(vpp_mod_t mod);
-EXTERN struct vpp_fb_base_t *vpp_mod_get_fb_base(vpp_mod_t mod);
+EXTERN vpp_mod_base_t *vpp_mod_get_base(vpp_mod_t mod);
+EXTERN vpp_fb_base_t *vpp_mod_get_fb_base(vpp_mod_t mod);
 EXTERN vdo_framebuf_t *vpp_mod_get_framebuf(vpp_mod_t mod);
 EXTERN void vpp_mod_init(void);
 EXTERN void vpp_mod_set_clock(vpp_mod_t mod,
@@ -615,34 +617,35 @@ EXTERN void vpp_wait_vsync(int no, int cnt);
 EXTERN int vpp_get_gcd(int A, int B);
 EXTERN vpp_csc_t vpp_check_csc_mode(vpp_csc_t mode,
 	vdo_color_fmt src_fmt, vdo_color_fmt dst_fmt, unsigned int flags);
-EXTERN inline void vpp_cache_sync(void);
+EXTERN __inline__ void vpp_cache_sync(void);
 EXTERN int vpp_calc_refresh(int pixclk, int xres, int yres);
 EXTERN int vpp_calc_align(int value, int align);
 EXTERN int vpp_calc_fb_width(vdo_color_fmt colfmt, int width);
 EXTERN void vpp_get_colfmt_bpp(vdo_color_fmt colfmt,
 	int *y_bpp, int *c_bpp);
-EXTERN int vpp_irqproc_work(enum vpp_int_t type, int (*func)(void *argc),
+EXTERN int vpp_irqproc_work(vpp_int_t type, int (*func)(void *argc),
 	void *arg, int wait_ms, int work_cnt);
-EXTERN int vpp_check_dbg_level(enum vpp_dbg_level_t level);
+EXTERN int vpp_check_dbg_level(vpp_dbg_level_t level);
 
 #ifdef __KERNEL__
 EXTERN void vpp_dbg_show(int level, int tmr, char *str);
 EXTERN void vpp_dbg_wake_up(void);
-EXTERN int vpp_dbg_get_period_usec(struct vpp_dbg_period_t *p,
-	int cmd);
-EXTERN void vpp_dbg_timer(struct vpp_dbg_timer_t *p, char *str, int cmd);
+EXTERN int vpp_dbg_get_period_usec(vpp_dbg_period_t *p, int cmd);
+EXTERN void vpp_dbg_timer(vpp_dbg_timer_t *p, char *str, int cmd);
 EXTERN void vpp_dbg_back_trace(void);
 EXTERN void vpp_dbg_show_val1(int level, int tmr, char *str, int val);
 EXTERN void vpp_dbg_wait(char *str);
 EXTERN void vpp_irqproc_init(void);
-EXTERN void vpp_irqproc_del_work(enum vpp_int_t type,
+EXTERN void vpp_irqproc_del_work(vpp_int_t type,
 	int (*func)(void *argc));
-EXTERN struct vpp_irqproc_t *vpp_irqproc_get_entry(
-	enum vpp_int_t vpp_int);
+EXTERN vpp_irqproc_t *vpp_irqproc_get_entry(vpp_int_t vpp_int);
 
 /* dev-vpp.c */
-EXTERN int vpp_get_info(int fbn, struct fb_var_screeninfo *var);
+EXTERN void vpp_get_info(int fbn, struct fb_var_screeninfo *var);
 EXTERN int vpp_set_par(struct fb_info *info);
+EXTERN unsigned int *vpp_backup_reg(unsigned int addr, unsigned int size);
+EXTERN int vpp_restore_reg(unsigned int addr,
+	unsigned int size, unsigned int *reg_ptr);
 EXTERN void vpp_backup_reg2(unsigned int addr,
 	unsigned int size, unsigned int *ptr);
 EXTERN void vpp_restore_reg2(unsigned int addr,
@@ -657,6 +660,7 @@ EXTERN void vpp_switch_state_init(void);
 EXTERN int vpp_set_blank(struct fb_info *info, int blank);
 #endif
 
+EXTERN void vpp_reg_dump(unsigned int addr, int size);
 EXTERN unsigned int vpp_convert_colfmt(int yuv2rgb, unsigned int data);
 EXTERN void vpp_init(void);
 
@@ -665,11 +669,15 @@ EXTERN void vpp_show_timing(char *str,
 	struct fb_videomode *vmode, vpp_clock_t *clk);
 EXTERN void vpp_show_framebuf(char *str, vdo_framebuf_t *fb);
 EXTERN void vpp_show_videomode(char *str, struct fb_videomode *v);
+EXTERN void vpp_set_mutex(int idx, int lock);
 EXTERN void vpp_set_NA12_hiprio(int type);
+EXTERN void vpp_free_framebuffer(void);
+EXTERN int vpp_alloc_framebuffer(unsigned int resx, unsigned int resy);
 
 EXTERN int vpp_mb_get(unsigned int phy);
 EXTERN int vpp_mb_put(unsigned int phy);
 EXTERN int vpp_mb_irqproc_sync(int arg);
+EXTERN void vpp_mb_scale_bitblit(vdo_framebuf_t *fb);
 
 #undef EXTERN
 

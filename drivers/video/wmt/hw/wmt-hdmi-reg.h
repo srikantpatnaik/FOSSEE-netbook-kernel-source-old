@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/hw/wmt-hdmi-reg.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,354 +26,241 @@
 
 #define WMT_FTBLK_HDMI
 
-#define HDMI_BASE_ADDR	(HDMI_TRANSMITTE_BASE_ADDR + 0xC000)
+#define HDMI_BASE_ADDR			(HDMI_TRANSMITTE_BASE_ADDR + 0xC000)
 
-struct hdmi_base1_regs {
-	unsigned int _100_11c[8];
+/* HDMI registers */
+#define REG_HDMI_BEGIN			(HDMI_BASE_ADDR + 0x100)
+#define REG_HDMI_CTRL			(HDMI_BASE_ADDR + 0x120)
+#define REG_HDMI_I2C_CTRL		(HDMI_BASE_ADDR + 0x124)
+#define REG_HDMI_I2C_CTRL2		(HDMI_BASE_ADDR + 0x128)
+#define REG_HDMI_GENERAL_CTRL		(HDMI_BASE_ADDR + 0x280)
+#define REG_HDMI_INFOFRAME_CTRL		(HDMI_BASE_ADDR + 0x284)
+#define REG_HDMI_AUD_INSERT_CTRL	(HDMI_BASE_ADDR + 0x294)
+#define REG_HDMI_AUD_RATIO		(HDMI_BASE_ADDR + 0x29c)
+#define REG_HDMI_AUD_ENABLE		(HDMI_BASE_ADDR + 0x2a0)
+#define REG_HDMI_AUD_MODE		(HDMI_BASE_ADDR + 0x2ac)
+#define REG_HDMI_AUD_CHAN_STATUS0	(HDMI_BASE_ADDR + 0x390)
+#define REG_HDMI_AUD_CHAN_STATUS1	(HDMI_BASE_ADDR + 0x394)
+#define REG_HDMI_AUD_CHAN_STATUS2	(HDMI_BASE_ADDR + 0x398)
+#define REG_HDMI_AUD_CHAN_STATUS3	(HDMI_BASE_ADDR + 0x39c)
+#define REG_HDMI_AUD_CHAN_STATUS4	(HDMI_BASE_ADDR + 0x3a0)
+#define REG_HDMI_AUD_CHAN_STATUS5	(HDMI_BASE_ADDR + 0x3a4)
+#define REG_HDMI_AUD_SAMPLE_RATE1	(HDMI_BASE_ADDR + 0x3a8)
+#define REG_HDMI_AUD_SAMPLE_RATE2	(HDMI_BASE_ADDR + 0x3ac)
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int eeprom_reset:1;
-			unsigned int encode_enable:1;
-			unsigned int hden:1;
-			unsigned int eess_enable:1;
-			unsigned int verify_pj_enable:1;
-			unsigned int i2c_enable:1;
-			unsigned int auth_test_key:1;
-			unsigned int _7:1;
-			unsigned int cipher_1_1:1;
-			unsigned int _9_11:3;
-			unsigned int preamble:4;
-			unsigned int _16_19:4;
-			unsigned int encode_window:3;
-		} b;
-	} ctrl; /* 0x120 */
+/* HDMI info WR FIFO 0x3c0 - 0x3e0 */
+#define REG_HDMI_WR_FIFO_ADDR		(HDMI_BASE_ADDR + 0x3c0)
+#define REG_HDMI_FIFO_CTRL		(HDMI_BASE_ADDR + 0x3e4)
+#define REG_HDMI_CHANNEL_TEST		(HDMI_BASE_ADDR + 0x3e8)
+#define REG_HDMI_HOTPLUG_DETECT		(HDMI_BASE_ADDR + 0x3ec)
+#define REG_HDMI_HOTPLUG_DEBOUNCE	(HDMI_BASE_ADDR + 0x3f0)
+#define REG_HDMI_TMDS_CTRL 		(HDMI_BASE_ADDR + 0x3f8)
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int _0_6:7;
-			unsigned int force_exit_fsm:1;
-			unsigned int key_read_word:7;
-			unsigned int i2c_sw_reset:1;
-			unsigned int i2c_clk_divider:16;
-		} b;
-	} i2c_ctrl; /* 0x124 */
+/* HDMI info RD FIFO 0x400 - 0x420 */
+#define REG_HDMI_RD_FIFO_ADDR		(HDMI_BASE_ADDR + 0x400)
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int wr_data:8;
-			unsigned int rd_data:8;
-			unsigned int sw_start_req:1;
-			unsigned int sw_stop_req:1;
-			unsigned int wr_data_avail:1;
-			unsigned int i2c_status:1; /* 0-not using,1-in using */
-			unsigned int cp_key_req:1;
-			unsigned int cp_key_read:1;
-			unsigned int cp_key_last:1;
-			unsigned int _23:1;
-			unsigned int cp_src_sel:1;
-			unsigned int sw_read:1;
-			unsigned int sw_i2c_req:1;
-			unsigned int ksv_list_avail:1;
-			unsigned int ksv_verify_done:1;
-		} b;
-	} i2c_ctrl2; /* 0x128 */
+#define REG_HDMI_END			(HDMI_BASE_ADDR + 0x420)
 
-	unsigned int _12c_27c[85];
+/* REG_HDMI_CTRL,0x120 */
+#define HDMI_EEPROM_RESET		REG_HDMI_CTRL, BIT0, 0
+#define HDMI_ENCODE_ENABLE		REG_HDMI_CTRL, BIT1, 1
+#define HDMI_HDEN			REG_HDMI_CTRL, BIT2, 2
+#define HDMI_EESS_ENABLE		REG_HDMI_CTRL, BIT3, 3
+#define HDMI_VERIFY_PJ_ENABLE		REG_HDMI_CTRL, BIT4, 4
+#define HDMI_I2C_ENABLE			REG_HDMI_CTRL, BIT5, 5
+#define HDMI_AUTH_TEST_KEY		REG_HDMI_CTRL, BIT6, 6
+#define HDMI_CIPHER_1_1			REG_HDMI_CTRL, BIT8, 8
+#define HDMI_PREAMBLE			REG_HDMI_CTRL, 0xF000, 12
+#define HDMI_ENCODE_WINDOW		REG_HDMI_CTRL, 0x700000, 20
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int reset:1;
-			unsigned int enable:1;
-			unsigned int _2_5:4;
-			unsigned int dvi_mode_enable:1;
-			unsigned int output_format:2; /* 0-RGB,
-							1-YUV444,2-YUV422 */
-			unsigned int convert_yuv422:1;
-			unsigned int hsync_low_active:1; /* 0-active hi,1-lo */
-			unsigned int dbg_bus_select:1; /* 0-before,1-after */
-			unsigned int _12:1;
-			unsigned int vsync_low_active:1; /* 0-active hi,1-lo */
-			unsigned int _14_15:2;
-			unsigned int cp_delay:7;
-			unsigned int _23:1;
-			unsigned int vsync_enable:3; /* write only */
-			unsigned int state_machine_status:5;
-		} b;
-	} general_ctrl; /* 0x280 */
+/* REG_HDMI_I2C_CTRL,0x124 */
+#define HDMI_FORCE_EXIT_FSM		REG_HDMI_I2C_CTRL, BIT7, 7
+#define HDMI_KEY_READ_WORD		REG_HDMI_I2C_CTRL, 0xFF00, 8
+#define HDMI_I2C_SW_RESET		REG_HDMI_I2C_CTRL, 0x8000, 15
+#define HDMI_I2C_CLK_DIVIDER		REG_HDMI_I2C_CTRL, 0xFFFF0000, 16
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int select:1; /* 0-fifo1,1-fifo2 */
-			unsigned int fifo1_rdy:1; /* Info frame FIFO 1 ready */
-			unsigned int fifo2_rdy:1; /* Info frame FIFO 2 ready */
-			unsigned int _3:1;
-			unsigned int fifo1_addr:4; /* FIFO 1 start address */
-			unsigned int fifo1_len:5; /* FIFO 1 length */
-			unsigned int _13_15:3;
-			unsigned int fifo2_addr:4; /* FIFO 2 start address */
-			unsigned int fifo2_len:5; /* FIFO 2 length */
-			unsigned int _25_27:3;
-			unsigned int horiz_blank_max_pck:3; /* Max packets
-						that insert during HSYNC */
-		} b;
-	} infoframe_ctrl; /* 0x284 */
-	unsigned int _288_290[3];
+/* REG_HDMI_I2C_CTRL2,0x128 */
+#define HDMI_WR_DATA			REG_HDMI_I2C_CTRL2, 0xFF, 0
+#define HDMI_RD_DATA			REG_HDMI_I2C_CTRL2, 0xFF00, 8
+#define HDMI_SW_START_REQ		REG_HDMI_I2C_CTRL2, BIT16, 16
+#define HDMI_SW_STOP_REQ		REG_HDMI_I2C_CTRL2, BIT17, 17
+#define HDMI_WR_DATA_AVAIL		REG_HDMI_I2C_CTRL2, BIT18, 18
+#define HDMI_I2C_STATUS			REG_HDMI_I2C_CTRL2, BIT19, 19 /* 0-not using, 1-in using */
+#define HDMI_CP_KEY_REQ			REG_HDMI_I2C_CTRL2, BIT20, 20
+#define HDMI_CP_KEY_READ		REG_HDMI_I2C_CTRL2, BIT21, 21
+#define HDMI_CP_KEY_LAST		REG_HDMI_I2C_CTRL2, BIT22, 22
+#define HDMI_CP_SRC_SEL			REG_HDMI_I2C_CTRL2, BIT24, 24
+#define HDMI_SW_READ			REG_HDMI_I2C_CTRL2, BIT25, 25
+#define HDMI_SW_I2C_REQ			REG_HDMI_I2C_CTRL2, BIT26, 26
+#define HDMI_KSV_LIST_AVAIL		REG_HDMI_I2C_CTRL2, BIT27, 27
+#define HDMI_KSV_VERIFY_DONE		REG_HDMI_I2C_CTRL2, BIT28, 28
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int pck_insert_reset:1;
-			unsigned int pck_insert_enable:1;
-			unsigned int avmute_set_enable:1;
-			unsigned int avmute_clr_enable:1;
-			unsigned int insert_delay:12;
-			unsigned int _16_29:14;
-			unsigned int pixel_repetition:2; /* 0-none,1-2x,2-4x */
-		} b;
-	} aud_insert_ctrl; /* 0x294 */
+/* REG_HDMI_GENERAL_CTRL,0x280 */
+#define HDMI_RESET			REG_HDMI_GENERAL_CTRL, BIT0, 0
+#define HDMI_ENABLE			REG_HDMI_GENERAL_CTRL, BIT1, 1
+#define HDMI_DVI_MODE_ENABLE		REG_HDMI_GENERAL_CTRL, BIT6, 6
+#define HDMI_OUTPUT_FORMAT		REG_HDMI_GENERAL_CTRL, 0x180, 7	/* 0-RGB,1-YUV444,2-YUV422 */
+#define HDMI_CONVERT_YUV422		REG_HDMI_GENERAL_CTRL, BIT9, 9
+#define HDMI_HSYNC_LOW_ACTIVE		REG_HDMI_GENERAL_CTRL, BIT10, 10 /* 0-active high,1-active low */
+#define HDMI_DBG_BUS_SELECT		REG_HDMI_GENERAL_CTRL, BIT11, 11 /* 0-before,1-after */
+#define HDMI_VSYNC_LOW_ACTIVE		REG_HDMI_GENERAL_CTRL, BIT13, 13 /* 0-active high,1-active low */
+#define HDMI_CP_DELAY			REG_HDMI_GENERAL_CTRL, 0x7F0000, 16 /* delay for CP after HSYNC raising edge */
+#define HDMI_VSYNC_384_ENABLE		REG_HDMI_GENERAL_CTRL, BIT24, 24
+#define HDMI_VSYNC_385_507_ENABLE	REG_HDMI_GENERAL_CTRL, BIT25, 25
+#define HDMI_VSYNC_650_ENABLE		REG_HDMI_GENERAL_CTRL, BIT26, 26
+#define HDMI_STATE_MACHINE_STATUS	REG_HDMI_GENERAL_CTRL, 0xF8000000, 27
 
-	unsigned int _298;
+/* REG_HDMI_INFOFRAME_CTRL,0x284 */
+#define HDMI_INFOFRAME_SELECT		REG_HDMI_INFOFRAME_CTRL, BIT0, 0 /* 0-fifo1,1-fifo2 */
+#define HDMI_INFOFRAME_FIFO1_RDY	REG_HDMI_INFOFRAME_CTRL, BIT1, 1 /* Info frame FIFO 1 ready */
+#define HDMI_INFOFRAME_FIFO2_RDY	REG_HDMI_INFOFRAME_CTRL, BIT2, 2 /* Info frame FIFO 2 ready */
+#define HDMI_INFOFRAME_FIFO1_ADDR	REG_HDMI_INFOFRAME_CTRL, 0xF0, 4 /* Info frame FIFO 1 start address */
+#define HDMI_INFOFRAME_FIFO1_LEN	REG_HDMI_INFOFRAME_CTRL, 0x1F00, 8 /* Info frame FIFO 1 length */
+#define HDMI_INFOFRAME_FIFO2_ADDR	REG_HDMI_INFOFRAME_CTRL, 0xF0000, 16 /* Info frame FIFO 2 start address */
+#define HDMI_INFOFRAME_FIFO2_LEN	REG_HDMI_INFOFRAME_CTRL, 0x1F00000, 20 /* Info frame FIFO 2 length */
+#define HDMI_HORIZ_BLANK_MAX_PCK	REG_HDMI_INFOFRAME_CTRL, 0x70000000, 28 /* Max packets that insert during HSYNC */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int _0_7:8;
-			unsigned int acr_ratio:20;
-			unsigned int acr_enable:1;
-			unsigned int mute:1;
-		} b;
-	} aud_ratio; /* 0x29c */
+/* REG_HDMI_AUD_INSERT_CTRL,0x294 */
+#define HDMI_AUD_PCK_INSERT_RESET	REG_HDMI_AUD_INSERT_CTRL, BIT0, 0
+#define HDMI_AUD_PCK_INSERT_ENABLE	REG_HDMI_AUD_INSERT_CTRL, BIT1, 1
+#define HDMI_AVMUTE_SET_ENABLE		REG_HDMI_AUD_INSERT_CTRL, BIT2, 2
+#define HDMI_AVMUTE_CLR_ENABLE		REG_HDMI_AUD_INSERT_CTRL, BIT3, 3
+#define HDMI_AUD_INSERT_DELAY		REG_HDMI_AUD_INSERT_CTRL, 0xFFF0, 4
+#define HDMI_AUD_PIXEL_REPETITION	REG_HDMI_AUD_INSERT_CTRL, 0xC0000000, 30 /* 0-none,1-2 times,2-4 times */
 
-	unsigned int aud_enable; /* 0x2a0 */
-	unsigned int _2a4_2a8[2];
+/* REG_HDMI_AUD_RATIO,0x29c */
+#define HDMI_AUD_ACR_RATIO		REG_HDMI_AUD_RATIO, 0x0FFFFF00, 8
+#define HDMI_AUD_ACR_ENABLE		REG_HDMI_AUD_RATIO, BIT28, 28
+#define HDMI_AUD_MUTE			REG_HDMI_AUD_RATIO, BIT29, 29
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int sub_packet:4;
-			unsigned int spflat:4;
-			unsigned int _2ch_eco:1;
-			unsigned int _9:1;
-			unsigned int layout:1; /* 0-2 channel,1-8 channel */
-			unsigned int pwr_saving:1; /* 0-normal,1-power saving */
-		} b;
-	} aud_mode; /* 0x2ac */
+/* REG_HDMI_AUD_ENABLE,0x2a0 */
+#define HDMI_AUD_ENABLE			REG_HDMI_AUD_ENABLE, BIT0, 0
 
-	unsigned int _2b0_38c[56];
-	unsigned int aud_chan_status0; /* 0x390 */
-	unsigned int aud_chan_status1; /* 0x394 */
-	unsigned int aud_chan_status2; /* 0x398 */
-	unsigned int aud_chan_status3; /* 0x39c */
-	unsigned int aud_chan_status4; /* 0x3a0 */
-	unsigned int aud_chan_status5; /* 0x3a4 */
+/* REG_HDMI_AUD_MODE,0x2ac */
+#define HDMI_AUD_SUB_PACKET		REG_HDMI_AUD_MODE, 0xF, 0
+#define HDMI_AUD_SPFLAT			REG_HDMI_AUD_MODE, 0xF0, 4
+#define HDMI_AUD_2CH_ECO		REG_HDMI_AUD_MODE, BIT8, 8
+#define HDMI_AUD_LAYOUT			REG_HDMI_AUD_MODE, BIT10, 10 /* 0-2 channel,1-8 channel */
+#define HDMI_AUD_PWR_SAVING		REG_HDMI_AUD_MODE, BIT11, 11 /* 0-normal, 1-power saving */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int n_20bits:20;
-			unsigned int cts_low_12bits:12;
-		} b;
-	} aud_sample_rate1; /* 0x3a8 */
+/* REG_HDMI_AUD_CHAN_STATUS0,0x390 */
+/* REG_HDMI_AUD_CHAN_STATUS1,0x394 */
+/* REG_HDMI_AUD_CHAN_STATUS2,0x398 */
+/* REG_HDMI_AUD_CHAN_STATUS3,0x39c */
+/* REG_HDMI_AUD_CHAN_STATUS4,0x3a0 */
+/* REG_HDMI_AUD_CHAN_STATUS5,0x3a4 */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int cts_hi_8bits:8;
-			unsigned int _8_27:20;
-			unsigned int aipclk_rate:2; /* 0-N/2,1-N,2-N/4,3-N*2 */
-			unsigned int cts_select:1; /* 0-auto,1-fixed from reg */
-		} b;
-	} aud_sample_rate2; /* 0x3ac */
+/* REG_HDMI_AUD_SAMPLE_RATE1,0x3a8 */
+#define HDMI_AUD_N_20BITS		REG_HDMI_AUD_SAMPLE_RATE1, 0xFFFFF, 0
+#define HDMI_AUD_CTS_LOW_12BITS		REG_HDMI_AUD_SAMPLE_RATE1, 0xFFF00000, 20
 
-	unsigned int _3b0_3bc[4];
-	unsigned int wr_fifo_addr[9]; /* 0x3c0 - 0x3e0 */
+/* REG_HDMI_AUD_SAMPLE_RATE2,0x3ac */
+#define HDMI_AUD_CTS_HI_8BITS		REG_HDMI_AUD_SAMPLE_RATE2, 0xFF, 0
+#define HDMI_AUD_AIPCLK_RATE		REG_HDMI_AUD_SAMPLE_RATE2, 0x30000000, 28 /* 0-N/2,1-N,2-N/4,3-N*2 */
+#define HDMI_AUD_CTS_SELECT		REG_HDMI_AUD_SAMPLE_RATE2, BIT30, 30 /* 0-auto, 1-fixed from register */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int wr_strobe:1;
-			unsigned int rd_strobe:1;
-			unsigned int _2_7:6;
-			unsigned int addr:8;
-		} b;
-	} fifo_ctrl; /* 0x3e4 */
+/* 0x3c0 - 0x3e0 : Info frame FIFO data */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int ch0_data:10;
-			unsigned int ch0_enable:1;
-			unsigned int _11_15:5;
-			unsigned int ch1_data:10;
-			unsigned int ch1_enable:1;
-		} b;
-	} channel_test; /* 0x3e8 */
+/* REG_HDMI_FIFO_CTRL,0x3e4 */
+#define HDMI_INFOFRAME_WR_STROBE	REG_HDMI_FIFO_CTRL, BIT0, 0
+#define HDMI_INFOFRAME_RD_STROBE	REG_HDMI_FIFO_CTRL, BIT1, 1
+#define HDMI_INFOFRAME_FIFO_ADDR	REG_HDMI_FIFO_CTRL, 0xFF00, 8
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int ch2_data:10;
-			unsigned int ch2_enable:1;
-			unsigned int _11_15:5;
-			unsigned int in_enable:1;
-			unsigned int out_enable:1;
-			unsigned int _18_23:6;
-			unsigned int in_sts:1;
-			unsigned int out_sts:1;
-			unsigned int _26_30:5;
-			unsigned int sts:1; /* 0-plug out,1-plug in */
-		} b;
-	} hotplug_detect; /* 0x3ec */
+/* REG_HDMI_CHANNEL_TEST,0x3e8 */
+#define HDMI_CH1_TEST_MODE_ENABLE	REG_HDMI_CHANNEL_TEST, BIT26, 26
+#define HDMI_CH1_TEST_DATA		REG_HDMI_CHANNEL_TEST, 0x3FF0000, 16
+#define HDMI_CH0_TEST_MODE_ENABLE	REG_HDMI_CHANNEL_TEST, BIT10, 10
+#define HDMI_CH0_TEST_DATA		REG_HDMI_CHANNEL_TEST, 0x3FF, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int sample:8;
-			unsigned int _8_15:8;
-			unsigned int detect:9;
-		} b;
-	} hotplug_debounce; /* 0x3f0 */
+/* REG_HDMI_HOTPLUG_DETECT,0x3ec */
+#define HDMI_HOTPLUG_IN			REG_HDMI_HOTPLUG_DETECT, BIT31, 31 /* 0-plug out,1-plug in */
+#define HDMI_HOTPLUG_OUT_STS		REG_HDMI_HOTPLUG_DETECT, BIT25, 25
+#define HDMI_HOTPLUG_IN_STS		REG_HDMI_HOTPLUG_DETECT, BIT24, 24
+#define HDMI_HOTPLUG_OUT_INT		REG_HDMI_HOTPLUG_DETECT, BIT17, 17
+#define HDMI_HOTPLUG_IN_INT		REG_HDMI_HOTPLUG_DETECT, BIT16, 16
+#define HDMI_CH2_TEST_MODE_ENABLE	REG_HDMI_HOTPLUG_DETECT, BIT10, 10
+#define HDMI_CH2_TEST_DATA		REG_HDMI_HOTPLUG_DETECT, 0x3FF, 0
 
-	unsigned int _3f4;
+/* REG_HDMI_HOTPLUG_DEBOUNCE,0x3f0 */
+#define HDMI_DEBOUNCE_DETECT		REG_HDMI_HOTPLUG_DEBOUNCE, 0x1FF0000, 16
+#define HDMI_DEBOUNCE_SAMPLE		REG_HDMI_HOTPLUG_DEBOUNCE, 0xFF, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int test_enable:1;
-			unsigned int test_format:1;
-			unsigned int _2_9:8;
-			unsigned int infoframe_sram_enable:1;
-			unsigned int _11_15:5;
-			unsigned int clock_select:1; /* 0-clk 1x, 1-clk 2x */
-		} b;
-	} tmds_ctrl; /* 0x3f8 */
+/* REG_HDMI_TMDS_CTRL,0x3f8 */
+#define HDMI_CLOCK_SELECT		REG_HDMI_TMDS_CTRL, BIT16, 16 /* 0-clk 1x, 1-clk 2x */
+#define HDMI_INFOFRAME_SRAM_ENABLE	REG_HDMI_TMDS_CTRL, BIT10, 10
+#define HDMI_TMDS_TST_FORMAT		REG_HDMI_TMDS_CTRL, BIT1, 1
+#define HDMI_TMDS_TST_ENABLE		REG_HDMI_TMDS_CTRL, BIT0, 0
 
-	unsigned int _3fc;
-	unsigned int rd_fifo_addr[9]; /* 0x400 - 0x420 */
-};
+/* 0x400 - 0x420 : HDMI info frame FIFO data (RO) */
 
-struct hdmi_base2_regs {
-	union {
-		unsigned int val;
-		struct {
-			unsigned int inv_clk:1;
-			unsigned int _1_3:3;
-			unsigned int dual_channel:1;
-			unsigned int _5_7:3;
-			unsigned int test:4;
-			unsigned int _12_18:7;
-			unsigned int internal_ldo:1;
-		} b;
-	} status; /* 0x00 */
+#define REG_HDMI2_BEGIN			(HDMI_BASE2_ADDR + 0x00)
+#define REG_HDMI_STATUS			(HDMI_BASE2_ADDR + 0x00)
+#define REG_HDMI_TEST			(HDMI_BASE2_ADDR + 0x04)
+#define REG_HDMI_LEVEL			(HDMI_BASE2_ADDR + 0x08)
+#define REG_HDMI_IGS			(HDMI_BASE2_ADDR + 0x0C)
+#define REG_HDMI_SET			(HDMI_BASE2_ADDR + 0x10)
+#define REG_HDMI_SET2			(HDMI_BASE2_ADDR + 0x14)
+#define REG_HDMI_DETECT			(HDMI_BASE2_ADDR + 0x18)
+#define REG_HDMI_TEST2			(HDMI_BASE2_ADDR + 0x1C)
+#define REG_HDMI_TEST3			(HDMI_BASE2_ADDR + 0x20)
+#define REG_HDMI_DFTSET2		(HDMI_BASE2_ADDR + 0x24)
+#define REG_HDMI2_END			(HDMI_BASE2_ADDR + 0x28)
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int drv_pdmode:1;
-			unsigned int _1:1;
-			unsigned int vbg_sel:2;
-			unsigned int _4_7:4;
-			unsigned int pd:1;
-			unsigned int tre_en:2;
-			unsigned int _11:1;
-			unsigned int pllck_dly:3;
-			unsigned int _15:1;
-			unsigned int pll_cpset:2;
-			unsigned int pll_r_f:1;
-		} b;
-	} test; /* 0x04 */
+/* REG_HDMI_STATUS,0x00 */
+#define HDMI_INTERNAL_LDO		REG_HDMI_STATUS, 0x80000, 19
+#define HDMI_TEST			REG_HDMI_STATUS, 0xF00, 8
+#define HDMI_DUAL_CHANNEL		REG_HDMI_STATUS, BIT4, 4
+#define HDMI_INV_CLK			REG_HDMI_STATUS, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int update:1;
-			unsigned int _1_7:7;
-			unsigned int level:1;
-		} b;
-	} level; /* 0x08 */
+/* REG_HDMI_TEST,0x04 */
+#define HDMI_PLL_R_F			REG_HDMI_TEST, BIT18, 18
+#define HDMI_PLL_CPSET			REG_HDMI_TEST, 0x30000, 16
+#define HDMI_PLLCK_DLY			REG_HDMI_TEST, 0x7000, 12
+#define HDMI_TRE_EN			REG_HDMI_TEST, 0x600, 9
+#define HDMI_PD				REG_HDMI_TEST, BIT8, 8
+#define HDMI_VBG_SEL			REG_HDMI_TEST, 0xC, 2
+#define HDMI_DRV_PDMODE			REG_HDMI_TEST, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int bpp_type:3; /* 0-888,1-555,2-666,3-565 */
-			unsigned int _3_7:5;
-			unsigned int ldi_shift_left:1; /* 0-right,1-left */
-		} b;
-	} igs; /* 0x0c */
+/* REG_HDMI_LEVEL,0x08 */
+#define HDMI_REG_LEVEL			REG_HDMI_LEVEL, BIT8, 8
+#define HDMI_REG_UPDATE			REG_HDMI_LEVEL, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int out_data_12:1; /* 0-24bit,1-12bit */
-			unsigned int hsync_polar_lo:1; /* 0-act hi,1-act low */
-			unsigned int dvo_enable:1;
-			unsigned int vsync_polar_lo:1; /* 0-act hi,1-act low */
-		} b;
-	} set; /* 0x10 */
+/* REG_HDMI_IGS,0x0C */
+#define HDMI_LDI_SHIFT_LEFT		REG_HDMI_IGS, BIT8, 8 /* 0-shift right,1-shift left */
+#define HDMI_IGS_BPP_TYPE		REG_HDMI_IGS, 0x7, 0 /* 0-888,1-555,2-666,3-565 */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int colfmt_rgb:1;/* 0-RGB or YUV444,1-YUV422 */
-			unsigned int colfmt_yuv422:1;
-		} b;
-	} set2; /* 0x14 */
+/* REG_HDMI_SET,0x10 */
+#define HDMI_VSYNC_POLAR_LO		REG_HDMI_SET, BIT3, 3 /* 0-active high,1-active low */
+#define HDMI_DVO_ENABLE			REG_HDMI_SET, BIT2, 2
+#define HDMI_HSYNC_POLAR_LO		REG_HDMI_SET, BIT1, 1 /* 0-active high,1-active low */
+#define HDMI_OUT_DATA_12		REG_HDMI_SET, BIT0, 0 /* 0-24bit,1-12bit */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int pll_ready:1;
-			unsigned int _1_7:7;
-			unsigned int rsen:1;
-		} b;
-	} detect; /* 0x18 */
+/* REG_HDMI_SET2,0x14 */
+#define HDMI_COLFMT_YUV422		REG_HDMI_SET2, BIT1, 1 /* 0-RGB or YUV444,1-YUV422 */
+#define HDMI_COLFMT_RGB			REG_HDMI_SET2, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int pll_tsync:1;
-			unsigned int tp2s_type:1;
-			unsigned int div_sel:2;
-			unsigned int pd_v2i:1;
-			unsigned int vco_sx:1;
-			unsigned int vco_mode:1;
-			unsigned int _7:1;
-			unsigned int vsref_sel:2;
-			unsigned int mode:1;
-			unsigned int pd_l2ha:1;
-			unsigned int pd_l2hb:1;
-			unsigned int l2ha_hsen:1;
-			unsigned int resa_en:1;
-			unsigned int resa_s:1;
-			unsigned int pll_lpfs:2;
-		} b;
-	} test2; /* 0x1c */
+/* REG_HDMI_DETECT,0x18 */
+#define HDMI_RSEN			REG_HDMI_DETECT, BIT8, 8
+#define HDMI_PLL_READY			REG_HDMI_DETECT, BIT0, 0
 
-	unsigned int test3; /* 0x20 */
+/* REG_HDMI_TEST2,0x1C */
+#define HDMI_PLL_TSYNC			REG_HDMI_TEST2, BIT0, 0
+#define HDMI_TP2S_TYPE			REG_HDMI_TEST2, BIT1, 1
+#define HDMI_DIV_SEL			REG_HDMI_TEST2, 0xC, 2
+#define HDMI_PD_V2I			REG_HDMI_TEST2, BIT4, 4
+#define HDMI_VCO_SX			REG_HDMI_TEST2, BIT5, 5
+#define HDMI_VCO_MODE			REG_HDMI_TEST2, BIT6, 6
+#define HDMI_VSREF_SEL			REG_HDMI_TEST2, 0x300, 8
+#define HDMI_MODE			REG_HDMI_TEST2, BIT10, 10
+#define HDMI_PD_L2HA			REG_HDMI_TEST2, BIT11, 11
+#define HDMI_PD_L2HB			REG_HDMI_TEST2, BIT12, 12
+#define HDMI_L2HA_HSEN			REG_HDMI_TEST2, BIT13, 13
+#define HDMI_RESA_EN			REG_HDMI_TEST2, BIT14, 14
+#define HDMI_RESA_S			REG_HDMI_TEST2, BIT15, 15
+#define HDMI_PLL_LPFS			REG_HDMI_TEST2, 0x30000, 16
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int _0_15:16;
-			unsigned int reset_pll:1;
-		} b;
-	} dftset2; /* 0x24 */
-};
+/* REG_HDMI_DFTSET2,0x24 */
+#define HDMI_RESET_PLL			REG_HDMI_DFTSET2, BIT16, 16
 
-#define REG_HDMI_BEGIN	(HDMI_BASE_ADDR + 0x100)
-#define REG_HDMI_END	(HDMI_BASE_ADDR + 0x420)
-#define REG_HDMI2_BEGIN	(HDMI_BASE2_ADDR + 0x00)
-#define REG_HDMI2_END	(HDMI_BASE2_ADDR + 0x28)
-
-#ifndef HDMI_C
-extern HW_REG struct hdmi_base1_regs *hdmi_regs1;
-extern HW_REG struct hdmi_base2_regs *hdmi_regs2;
-#endif
 #endif /* WMT_HDMI_REG_H */
 

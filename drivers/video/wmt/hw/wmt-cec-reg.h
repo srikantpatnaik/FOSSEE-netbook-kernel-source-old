@@ -28,193 +28,142 @@
 
 #define CEC_BASE_ADDR			(LVDS_BASE_ADDR + 0x100)
 #define CEC_BASE2_ADDR			(LVDS_BASE_ADDR + 0x200)
-struct cec_base_regs {
-	union {
-		unsigned int val;
-		struct {
-			unsigned int wr_start:1;
-		} b;
-	} enable; /* 0x0 */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int wr_num:8;
-		} b;
-	} encode_number; /* 0x04 */
+#define REG_CEC_BEGIN			(CEC_BASE_ADDR + 0x0)
+#define REG_CEC_ENABLE			(CEC_BASE_ADDR + 0x0)
+#define REG_CEC_ENCODE_NUMBER		(CEC_BASE_ADDR + 0x4)
+#define REG_CEC_ENCODE_HEADER		(CEC_BASE_ADDR + 0x8)
+#define REG_CEC_ENCODE_DATA		(CEC_BASE_ADDR + 0xC) /* Data1(0x0C) - Data15(0x44) */
+#define REG_CEC_DECODE_RESET		(CEC_BASE_ADDR + 0x48)
+#define REG_CEC_DECODE_START		(CEC_BASE_ADDR + 0x4C)
+#define REG_CEC_DECODE_HEADER		(CEC_BASE_ADDR + 0x50)
+#define REG_CEC_DECODE_DATA		(CEC_BASE_ADDR + 0x54) /* Data1(0x54) - Data15(0x8C) */
+#define REG_CEC_WR_START_SET0		(CEC_BASE_ADDR + 0x90) /* val * CEC_CLK = 3.7 ms */
+#define REG_CEC_WR_START_SET1		(CEC_BASE_ADDR + 0x94) /* val * CEC_CLK = 4.5 ms */
+#define REG_CEC_WR_LOGIC0_SET0		(CEC_BASE_ADDR + 0x98) /* val * CEC_CLK = 0.6 ms */
+#define REG_CEC_WR_LOGIC0_SET1		(CEC_BASE_ADDR + 0x9C) /* val * CEC_CLK = 2.4 ms */
+#define REG_CEC_WR_LOGIC1_SET0		(CEC_BASE_ADDR + 0xA0) /* val * CEC_CLK = 1.5 ms */
+#define REG_CEC_WR_LOGIC1_SET1		(CEC_BASE_ADDR + 0xA4) /* val * CEC_CLK = 2.4 ms */
+#define REG_CEC_RD_START_L_SET0		(CEC_BASE_ADDR + 0xA8) /* val * CEC_CLK = 3.5 ms */
+#define REG_CEC_RD_START_R_SET0		(CEC_BASE_ADDR + 0xAC) /* val * CEC_CLK = 3.9 ms */
+#define REG_CEC_RD_START_L_SET1		(CEC_BASE_ADDR + 0xB0) /* val * CEC_CLK = 4.3 ms */
+#define REG_CEC_RD_START_R_SET1		(CEC_BASE_ADDR + 0xB4) /* val * CEC_CLK = 4.7 ms */
+#define REG_CEC_RD_LOGIC0_L_SET0	(CEC_BASE_ADDR + 0xB8) /* val * CEC_CLK = 1.3 ms */
+#define REG_CEC_RD_LOGIC0_R_SET0	(CEC_BASE_ADDR + 0xBC) /* val * CEC_CLK = 1.7 ms */
+#define REG_CEC_RD_LOGIC0_L_SET1	(CEC_BASE_ADDR + 0xC0) /* val * CEC_CLK = 2.05 ms */
+#define REG_CEC_RD_LOGIC0_R_SET1	(CEC_BASE_ADDR + 0xC4) /* val * CEC_CLK = 2.75 ms */
+#define REG_CEC_RD_LOGIC1_L_SET0	(CEC_BASE_ADDR + 0xC8) /* val * CEC_CLK = 0.4 ms */
+#define REG_CEC_RD_LOGIC1_R_SET0	(CEC_BASE_ADDR + 0xCC) /* val * CEC_CLK = 0.8 ms */
+#define REG_CEC_RD_LOGIC1_L_SET1	(CEC_BASE_ADDR + 0xD0) /* val * CEC_CLK = 2.05 ms */
+#define REG_CEC_RD_LOGIC1_R_SET1	(CEC_BASE_ADDR + 0xD4) /* val * CEC_CLK = 2.75 ms */
+#define REG_CEC_PHYSICAL_ADDR		(CEC_BASE_ADDR + 0xD8)
+#define REG_CEC_LOGICAL_ADDR		(CEC_BASE_ADDR + 0xDC)
+#define REG_CEC_WR_RETRY		(CEC_BASE_ADDR + 0xE0)
+#define REG_CEC_FREE_3X			(CEC_BASE_ADDR + 0xE4)
+#define REG_CEC_WR_SET0_ERROR		(CEC_BASE_ADDR + 0xE8) /* val * CEC_CLK = 2.25 ms */
+#define REG_CEC_WR_SET1_ERROR		(CEC_BASE_ADDR + 0xEC)
+#define REG_CEC_REJECT			(CEC_BASE_ADDR + 0xF0)
+#define REG_CEC_RD_L_SET0_ERROR		(CEC_BASE_ADDR + 0xF4) /* val * CEC_CLK = 1.82 ms */
+#define REG_CEC_RD_R_SET1_ERROR		(CEC_BASE_ADDR + 0xF8) /* val * CEC_CLK = 2.38 ms */
+#define REG_CEC_RD_L_ERROR		(CEC_BASE_ADDR + 0xFC) /* val * CEC_CLK = 2.87 ms */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int wr_data_ack:1;
-			unsigned int wr_data_eom:1;
-			unsigned int _02_03:2;
-			unsigned int wr_data:8;
-		} b;
-	} encode_data[16]; /* 0x08 header,0x0c - 0x44 */
+#define REG_CEC_RX_TRIG_RANGE		(CEC_BASE2_ADDR + 0x00)
+#define REG_CEC_RX_SAMPLE_L_RANGE	(CEC_BASE2_ADDR + 0x04) /* val * CEC_CLK = 0.85 ms */
+#define REG_CEC_RX_SAMPLE_R_RANGE	(CEC_BASE2_ADDR + 0x08) /* val * CEC_CLK = 1.25 ms */
+#define REG_CEC_COMP_DISABLE		(CEC_BASE2_ADDR + 0x0C)
+#define REG_CEC_ERR_HANDLE_DISABLE  	(CEC_BASE2_ADDR + 0x10)
+#define REG_CEC_STATUS			(CEC_BASE2_ADDR + 0x14)
+#define REG_CEC_INT_ENABLE		(CEC_BASE2_ADDR + 0x18)
+#define REG_CEC_DECODE_FULL_DISABLE 	(CEC_BASE2_ADDR + 0x1C)
+#define REG_CEC_STATUS4_DISABLE		(CEC_BASE2_ADDR + 0x20)
+#define REG_CEC_RD_ENCODE_ENABLE	(CEC_BASE2_ADDR + 0x24)
+#define REG_CEC_DIS_ARB_CHECK		(CEC_BASE2_ADDR + 0x28)
+#define REG_CEC_END			(CEC_BASE2_ADDR + 0x28)
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int finish_reset:1;
-		} b;
-	} decode_reset; /* 0x48 */
+/* REG_CEC_ENABLE,0x0 */
+#define CEC_WR_START			REG_CEC_ENABLE, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int rd_start:1;
-			unsigned int rd_all_ack:1;
-			unsigned int rd_finish:1;
-		} b;
-	} decode_start; /* 0x4c */
+/* REG_CEC_ENCODE_NUMBER,0x4 */
+#define CEC_WR_NUM			REG_CEC_ENCODE_NUMBER, 0xFF, 0x0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int rd_data_ack:1;
-			unsigned int rd_data_eom:1;
-			unsigned int _02_03:2;
-			unsigned int rd_data:8;
-		} b;
-	} decode_data[16]; /* 0x50 header, 0x54 - 0x8c */
+/* REG_CEC_ENCODE_HEADER,0x8 */
+#define CEC_WR_HEADER_ACK		REG_CEC_ENCODE_HEADER, BIT0, 0
+#define CEC_WR_HEADER_EOM		REG_CEC_ENCODE_HEADER, BIT1, 1
+#define CEC_WR_HEADER_DATA		REG_CEC_ENCODE_HEADER, 0xFF0, 4
 
-	unsigned int wr_start_set0; /* 0x90 */
-	unsigned int wr_start_set1; /* 0x94 */
-	unsigned int wr_logic0_set0; /* 0x98 */
-	unsigned int wr_logic0_set1; /* 0x9c */
-	unsigned int wr_logic1_set0; /* 0xa0 */
-	unsigned int wr_logic1_set1; /* 0xa4 */
-	unsigned int rd_start_l_set0; /* 0xa8 */
-	unsigned int rd_start_r_set0; /* 0xac */
-	unsigned int rd_start_l_set1; /* 0xb0 */
-	unsigned int rd_start_r_set1; /* 0xb4 */
-	unsigned int rd_logic0_l_set0; /* 0xb8 */
-	unsigned int rd_logic0_r_set0; /* 0xbc */
-	unsigned int rd_logic0_l_set1; /* 0xc0 */
-	unsigned int rd_logic0_r_set1; /* 0xc4 */
-	unsigned int rd_logic1_l_set0; /* 0xc8 */
-	unsigned int rd_logic1_r_set0; /* 0xcc */
-	unsigned int rd_logic1_l_set1; /* 0xd0 */
-	unsigned int rd_logic1_r_set1; /* 0xd4 */
-	unsigned int physical_addr; /* 0xd8 */
+/* REG_CEC_ENCODE_DATA,Data1(0x0C) - Data15(0x44) */
+#define CEC_WR_DATA_ACK			REG_CEC_ENCODE_DATA, BIT0, 0
+#define CEC_WR_DATA_EOM			REG_CEC_ENCODE_DATA, BIT1, 1
+#define CEC_WR_DATA			REG_CEC_ENCODE_DATA, 0xFF0, 4
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int addr1:4;
-			unsigned int addr2:4;
-			unsigned int addr3:4;
-			unsigned int addr4:4;
-			unsigned int addr5:4;
-			unsigned int _20_23:4;
-			unsigned int valid1:1;
-			unsigned int valid2:1;
-			unsigned int valid3:1;
-			unsigned int valid4:1;
-			unsigned int valid5:1;
-		} b;
-	} logical_addr; /* 0xdc */
+/* REG_CEC_DECODE_RESET,0x48 */
+#define CEC_FINISH_RESET		REG_CEC_DECODE_RESET, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int retry:4;
-		} b;
-	} wr_retry; /* 0xe0 */
+/* REG_CEC_DECODE_START,0x4C */
+#define CEC_RD_START			REG_CEC_DECODE_START, BIT0, 0
+#define CEC_RD_ALL_ACK			REG_CEC_DECODE_START, BIT1, 1
+#define CEC_RD_FINISH			REG_CEC_DECODE_START, BIT2, 2
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int free_3x:4;
-			unsigned int _04_07:4;
-			unsigned int free_5x:4;
-			unsigned int _12_15:4;
-			unsigned int free_7x:4;
-		} b;
-	} free_3x; /* 0xe4 */
+/* REG_CEC_DECODE_HEADER,0x50 */
+#define CEC_RD_HEADER_ACK		REG_CEC_DECODE_HEADER, BIT0, 0
+#define CEC_RD_HEADER_EOM		REG_CEC_DECODE_HEADER, BIT1, 1
+#define CEC_RD_HEADER_DATA		REG_CEC_DECODE_HEADER, 0xFF0, 4
 
-	unsigned int wr_set0_error; /* 0xe8 */
-	unsigned int wr_set1_error; /* 0xec */
+/* REG_CEC_DECODE_DATA,Data1(0x54) - Data15(0x8C) */
+#define CEC_RD_DATA_ACK			REG_CEC_DECODE_DATA, BIT0, 0
+#define CEC_RD_DATA_EOM			REG_CEC_DECODE_DATA, BIT1, 1
+#define CEC_RD_DATA			REG_CEC_DECODE_DATA, 0xFF0, 4
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int next_decode:1; /*read enable*/
-		} b;
-	} reject; /* 0xf0 */
+/* REG_CEC_LOGICAL_ADDR,0xDC */
+#define CEC_LOGICAL_ADDR1		REG_CEC_LOGICAL_ADDR, 0xF, 0
+#define CEC_LOGICAL_ADDR2		REG_CEC_LOGICAL_ADDR, 0xF0, 4
+#define CEC_LOGICAL_ADDR3		REG_CEC_LOGICAL_ADDR, 0xF00, 8
+#define CEC_LOGICAL_ADDR4		REG_CEC_LOGICAL_ADDR, 0xF000, 12
+#define CEC_LOGICAL_ADDR5		REG_CEC_LOGICAL_ADDR, 0xF0000, 16
+#define CEC_ADDR_VALID1			REG_CEC_LOGICAL_ADDR, BIT24, 24
+#define CEC_ADDR_VALID2			REG_CEC_LOGICAL_ADDR, BIT25, 25
+#define CEC_ADDR_VALID3			REG_CEC_LOGICAL_ADDR, BIT26, 26
+#define CEC_ADDR_VALID4			REG_CEC_LOGICAL_ADDR, BIT27, 27
+#define CEC_ADDR_VALID5			REG_CEC_LOGICAL_ADDR, BIT28, 28
 
-	unsigned int rd_l_set0_error; /* 0xf4 */
-	unsigned int rd_r_set1_error; /* 0xf8 */
-	unsigned int rd_l_error; /* 0xfc */
+/* REG_CEC_WR_RETRY,0xE0 */
+#define CEC_WR_RETRY			REG_CEC_WR_RETRY, 0xF, 0
 
-	unsigned int rx_trig_range; /* 0x100 */
-	unsigned int rx_sample_l_range; /* 0x104 */
-	unsigned int rx_sample_r_range; /* 0x108 */
+/* REG_CEC_FREE_3X,0xE4 */
+#define CEC_FREE_3X			REG_CEC_FREE_3X, 0xF, 0
+#define CEC_FREE_5X			REG_CEC_FREE_3X, 0xF00, 8
+#define CEC_FREE_7X			REG_CEC_FREE_3X, 0xF0000, 16
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int disable:1;
-		} b;
-	} comp; /* 0x10c */
+/* REG_CEC_REJECT,0xF0 */
+#define CEC_REJECT_NEXT_DECODE		REG_CEC_REJECT, BIT0, 0 /*read enable*/
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int err:1;
-			unsigned int no_ack:1;
-		} b;
-	} handle_disable; /* 0x110 */
+/* REG_CEC_COMP_DISABLE,0x0C */
+#define CEC_COMP_DISABLE		REG_CEC_COMP_DISABLE, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int r1_encode_ok:1; /* write finish */
-			unsigned int r1_decode_ok:1; /* read finish */
-			unsigned int r1_error:1; /* read error */
-			unsigned int r1_arb_fail:1; /* wr arb fail */
-			unsigned int r1_no_ack:1; /* wr no ack */
-		} b;
-	} status; /* 0x114 */
+/* REG_CEC_ERR_HANDLE_DISABLE,0x10 */
+#define CEC_ERR_HANDLE_DISABLE  	REG_CEC_ERR_HANDLE_DISABLE, BIT0, 0
+#define CEC_NO_ACK_DISABLE		REG_CEC_ERR_HANDLE_DISABLE, BIT1, 1
 
-	unsigned int int_enable; /* 0x118 */
+/* REG_CEC_STATUS,0x14 */
+#define CEC_R1_ENCODE_OK		REG_CEC_STATUS, BIT0, 0 /* write finish */
+#define CEC_R1_DECODE_OK		REG_CEC_STATUS, BIT1, 1 /* read finish */
+#define CEC_R1_ERROR			REG_CEC_STATUS, BIT2, 2 /* read error */
+#define CEC_R1_ARB_FAIL			REG_CEC_STATUS, BIT3, 3 /* wr arb fail */
+#define CEC_R1_NO_ACK			REG_CEC_STATUS, BIT4, 4 /* wr no ack */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int disable:1;
-		} b;
-	} decode_full; /* 0x11c */
+/* REG_CEC_DECODE_FULL_DISABLE,0x1C */
+#define CEC_DECODE_FULL_DISABLE 	REG_CEC_DECODE_FULL_DISABLE, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int start:1;
-			unsigned int logic0:1;
-			unsigned int logic1:1;
-		} b;
-	} status4_disable; /* 0x120 */
+/* REG_CEC_STATUS4_DISABLE,0x20 */
+#define CEC_STATUS4_START_DISABLE 	REG_CEC_STATUS4_DISABLE, BIT0, 0
+#define CEC_STATUS4_LOGIC0_DISABLE 	REG_CEC_STATUS4_DISABLE, BIT1, 1
+#define CEC_STATUS4_LOGIC1_DISABLE 	REG_CEC_STATUS4_DISABLE, BIT2, 2
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int enable:1; /*1:rd self wr & all dest data */
-		} b;
-	} rd_encode; /* 0x124 */
+/* REG_CEC_RD_ENCODE_ENABLE,0x24 */
+#define CEC_RD_ENCODE_ENABLE	 	REG_CEC_RD_ENCODE_ENABLE, BIT0, 0 /* 1 : read self write and all dest data */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int disable:1; /* 1 : disable arb check */
-		} b;
-	} arb_check; /* 0x128 */
-};
+/* REG_CEC_DIS_ARB_CHECK,0x28 */
+#define CEC_ARB_CHECK_DISABLE		REG_CEC_DIS_ARB_CHECK, BIT0, 0 /* 1 : disable arbitration check */
 
-#define REG_CEC_BEGIN	(CEC_BASE_ADDR + 0x0)
-#define REG_CEC_END	(CEC_BASE2_ADDR + 0x28)
-#ifndef CEC_C
-extern struct cec_base_regs *cec_regs;
-#endif
 #endif /* WMT_CEC_REG_H */
 

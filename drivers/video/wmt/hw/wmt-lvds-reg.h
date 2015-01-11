@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/hw/wmt-lvds-reg.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,104 +26,67 @@
 
 #define WMT_FTBLK_LVDS
 
-struct lvds_base_regs {
-	union {
-		unsigned int val;
-		struct {
-			unsigned int inv_clk:1;
-			unsigned int _01_03:3;
-			unsigned int dual_channel:1;
-			unsigned int _05_07:3;
-			unsigned int test:4;
-		} b;
-	} status; /* 0x00 */
+#define REG_LVDS_BEGIN		(LVDS_BASE_ADDR + 0x00)
+#define REG_LVDS_STATUS		(LVDS_BASE_ADDR + 0x00)
+#define REG_LVDS_TEST		(LVDS_BASE_ADDR + 0x04)
+#define REG_LVDS_LEVEL		(LVDS_BASE_ADDR + 0x08)
+#define REG_LVDS_IGS		(LVDS_BASE_ADDR + 0x0C)
+#define REG_LVDS_SET		(LVDS_BASE_ADDR + 0x10)
+#define REG_LVDS_SET2		(LVDS_BASE_ADDR + 0x14)
+#define REG_LVDS_DETECT		(LVDS_BASE_ADDR + 0x18)
+#define REG_LVDS_TEST2		(LVDS_BASE_ADDR + 0x1C)
+#define REG_LVDS_END		(LVDS_BASE_ADDR + 0x1C)
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int drv_pdmode:1;
-			unsigned int _01:1;
-			unsigned int vbg_sel:2;
-			unsigned int _04_07:4;
-			unsigned int pd:1;
-			unsigned int tre_en:2;
-			unsigned int _11:1;
-			unsigned int pllck_dly:3;
-			unsigned int _15:1;
-			unsigned int pll_cpset:2;
-			unsigned int pll_r_f:1;
-		} b;
-	} test; /* 0x04 */
+/* REG_LVDS_STATUS,0x00 */
+#define LVDS_TEST		REG_LVDS_STATUS, 0xF00, 8
+#define LVDS_DUAL_CHANNEL	REG_LVDS_STATUS, BIT4, 4
+#define LVDS_INV_CLK		REG_LVDS_STATUS, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int update:1;
-			unsigned int _01_07:7;
-			unsigned int level:1;
-		} b;
-	} level; /* 0x08 */
+/* REG_LVDS_TEST,0x04 */
+#define LVDS_PLL_R_F		REG_LVDS_TEST, BIT18, 18
+#define LVDS_PLL_CPSET		REG_LVDS_TEST, 0x30000, 16
+#define LVDS_PLLCK_DLY		REG_LVDS_TEST, 0x7000, 12
+#define LVDS_TRE_EN		REG_LVDS_TEST, 0x600, 9
+#define LVDS_PD			REG_LVDS_TEST, BIT8, 8
+#define LVDS_VBG_SEL		REG_LVDS_TEST, 0xC, 2
+#define LVDS_DRV_PDMODE		REG_LVDS_TEST, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int bpp_type:3; /* 0-888,1-555,2-666,3-565 */
-			unsigned int _03_07:5;
-			unsigned int ldi_shift_left:1; /* 0-shift right,1-left*/
-		} b;
-	} igs; /* 0x0c */
+/* REG_LVDS_LEVEL,0x08 */
+#define LVDS_REG_LEVEL		REG_LVDS_LEVEL, BIT8, 8
+#define LVDS_REG_UPDATE		REG_LVDS_LEVEL, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int out_data_12:1; /* 0-24bit,1-12bit */
-			unsigned int hsync_polar_lo:1; /* 0-active hi,1-low */
-			unsigned int dvo_enable:1;
-			unsigned int vsync_polar_lo:1; /* 0-active hi,1-low */
-		} b;
-	} set; /* 0x10 */
+/* REG_LVDS_IGS,0x0C */
+#define LVDS_LDI_SHIFT_LEFT	REG_LVDS_IGS, BIT8, 8 /* 0-shift right,1-shift left */
+#define LVDS_IGS_BPP_TYPE	REG_LVDS_IGS, 0x7, 0 /* 0-888,1-555,2-666,3-565 */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int colfmt:2; /* 0-YUV444,1/3-RGB,2-YUV422 */
-		} b;
-	} set2; /* 0x14 */
+/* REG_LVDS_SET,0x10 */
+#define LVDS_VSYNC_POLAR_LO	REG_LVDS_SET, BIT3, 3 /* 0-active high,1-active low */
+#define LVDS_DVO_ENABLE		REG_LVDS_SET, BIT2, 2
+#define LVDS_HSYNC_POLAR_LO	REG_LVDS_SET, BIT1, 1 /* 0-active high,1-active low */
+#define LVDS_OUT_DATA_12	REG_LVDS_SET, BIT0, 0 /* 0-24bit,1-12bit */
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int pll_ready:1;
-			unsigned int _01_07:7;
-			unsigned int rsen:1;
-		} b;
-	} detect; /* 0x18 */
+/* REG_LVDS_SET2,0x14 */
+#define LVDS_COLFMT_YUV422	REG_LVDS_SET2, BIT1, 1 /* 0-RGB or YUV444,1-YUV422 */
+#define LVDS_COLFMT_RGB		REG_LVDS_SET2, BIT0, 0
 
-	union {
-		unsigned int val;
-		struct {
-			unsigned int pll_tsync:1;
-			unsigned int tp2s_type:1;
-			unsigned int div_sel:2;
-			unsigned int pd_v2i:1;
-			unsigned int vco_sx:1;
-			unsigned int vco_mode:1;
-			unsigned int _07:1;
-			unsigned int vsref_sel:2;
-			unsigned int mode:1;
-			unsigned int pd_l2ha:1;
-			unsigned int pd_l2hb:1;
-			unsigned int l2ha_hsen:1;
-			unsigned int resa_en:1;
-			unsigned int resa_s:1;
-			unsigned int pll_lpfs:2;
-		} b;
-	} test2; /* 0x1c */
-};
+/* REG_LVDS_DETECT,0x18 */
+#define LVDS_RSEN		REG_LVDS_DETECT, BIT8, 8
+#define LVDS_PLL_READY		REG_LVDS_DETECT, BIT0, 0
 
-#define REG_LVDS_BEGIN	(LVDS_BASE_ADDR + 0x00)
-#define REG_LVDS_END	(LVDS_BASE_ADDR + 0x1C)
-#ifndef LVDS_C
-extern struct lvds_base_regs *lvds_regs;
-#endif
+/* REG_LVDS_TEST2,0x1C */
+#define LVDS_PLL_TSYNC		REG_LVDS_TEST2, BIT0, 0
+#define LVDS_TP2S_TYPE		REG_LVDS_TEST2, BIT1, 1
+#define LVDS_DIV_SEL		REG_LVDS_TEST2, 0xC, 2
+#define LVDS_PD_V2I		REG_LVDS_TEST2, BIT4, 4
+#define LVDS_VCO_SX		REG_LVDS_TEST2, BIT5, 5
+#define LVDS_VCO_MODE		REG_LVDS_TEST2, BIT6, 6
+#define LVDS_VSREF_SEL		REG_LVDS_TEST2, 0x300, 8
+#define LVDS_MODE		REG_LVDS_TEST2, BIT10, 10
+#define LVDS_PD_L2HA		REG_LVDS_TEST2, BIT11, 11
+#define LVDS_PD_L2HB		REG_LVDS_TEST2, BIT12, 12
+#define LVDS_L2HA_HSEN		REG_LVDS_TEST2, BIT13, 13
+#define LVDS_RESA_EN		REG_LVDS_TEST2, BIT14, 14
+#define LVDS_RESA_S		REG_LVDS_TEST2, BIT15, 15
+#define LVDS_PLL_LPFS		REG_LVDS_TEST2, 0x30000, 16
+
 #endif /* WMT_LVDS_REG_H */

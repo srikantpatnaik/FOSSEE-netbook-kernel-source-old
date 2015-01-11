@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/sw_i2c.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@ void wmt_swi2c_lock(int lock)
 #endif
 }
 
-struct swi2c_reg_s *swi2c_scl, *swi2c_sda;
+swi2c_reg_t *swi2c_scl, *swi2c_sda;
 
 void wmt_swi2c_delay(unsigned int time)
 {
@@ -58,38 +58,40 @@ void wmt_swi2c_delay(unsigned int time)
 
 void wmt_swi2c_SetSDAInput(void)
 {
-	outw(inw(swi2c_sda->gpio_en) | swi2c_sda->bit_mask, swi2c_sda->gpio_en);
-	outw(inw(swi2c_sda->out_en) & ~swi2c_sda->bit_mask, swi2c_sda->out_en);
+	REG16_VAL(swi2c_sda->gpio_en) |= swi2c_sda->bit_mask;
+	REG16_VAL(swi2c_sda->out_en) &= ~swi2c_sda->bit_mask;
 }
 
 
 void wmt_swi2c_SetSDAOutput(void)
 {
-	outw(inw(swi2c_sda->gpio_en) | swi2c_sda->bit_mask, swi2c_sda->gpio_en);
-	outw(inw(swi2c_sda->out_en) | swi2c_sda->bit_mask, swi2c_sda->out_en);
+	REG16_VAL(swi2c_sda->gpio_en) |= swi2c_sda->bit_mask;
+	REG16_VAL(swi2c_sda->out_en) |= swi2c_sda->bit_mask;
 }
 
 bool wmt_swi2c_GetSDA(void) /* bit */
 {
-	if (inw(swi2c_sda->data_in) & swi2c_sda->bit_mask)
+	if (*(volatile unsigned short *)(swi2c_sda->data_in) &
+		swi2c_sda->bit_mask)
 #ifdef CFG_LOADER
 		return 1;
 	return 0;
 #else
-		return (HW_REG bool) 1;
-	return (HW_REG bool) 0;
+		return (volatile bool) 1;
+	return (volatile bool) 0;
 #endif
 }
 
 bool wmt_swi2c_GetSCL(void) /* bit */
 {
-	if (inw(swi2c_scl->data_in) & swi2c_scl->bit_mask)
+	if (*(volatile unsigned short *)(swi2c_scl->data_in) &
+		swi2c_scl->bit_mask)
 #ifdef CFG_LOADER
 		return 1;
 	return 0;
 #else
-		return (HW_REG bool) 1;
-	return (HW_REG bool) 0;
+		return (volatile bool) 1;
+	return (volatile bool) 0;
 #endif
 }
 
@@ -97,42 +99,30 @@ void wmt_swi2c_SetSDA(int high)
 {
 	if (high) {
 		/* set to GPI and pull high */
-		outw(inw(swi2c_sda->gpio_en) | swi2c_sda->bit_mask,
-			swi2c_sda->gpio_en);
-		outw(inw(swi2c_sda->out_en) & ~swi2c_sda->bit_mask,
-			swi2c_sda->out_en);
+		REG16_VAL(swi2c_sda->gpio_en) |= swi2c_sda->bit_mask;
+		REG16_VAL(swi2c_sda->out_en) &= ~swi2c_sda->bit_mask;
 		if (swi2c_sda->pull_en)
-			outw(inw(swi2c_sda->pull_en) &
-				~swi2c_sda->pull_en_bit_mask,
-				swi2c_sda->pull_en);
+			REG16_VAL(swi2c_sda->pull_en) &=
+					~swi2c_sda->pull_en_bit_mask;
 	} else {
-		outw(inw(swi2c_sda->gpio_en) | swi2c_sda->bit_mask,
-			swi2c_sda->gpio_en);
-		outw(inw(swi2c_sda->out_en) | swi2c_sda->bit_mask,
-			swi2c_sda->out_en);
-		outw(inw(swi2c_sda->data_out) & ~swi2c_sda->bit_mask,
-			swi2c_sda->data_out);
+		REG16_VAL(swi2c_sda->gpio_en) |= swi2c_sda->bit_mask;
+		REG16_VAL(swi2c_sda->out_en) |= swi2c_sda->bit_mask;
+		REG16_VAL(swi2c_sda->data_out) &= ~swi2c_sda->bit_mask;
 	}
 }
 
 void wmt_swi2c_SetSCL(int high)
 {
 	if (high) {
-		outw(inw(swi2c_scl->gpio_en) | swi2c_scl->bit_mask,
-			swi2c_scl->gpio_en);
-		outw(inw(swi2c_scl->out_en) & ~swi2c_scl->bit_mask,
-			swi2c_scl->out_en);
+		REG16_VAL(swi2c_scl->gpio_en) |= swi2c_scl->bit_mask;
+		REG16_VAL(swi2c_scl->out_en) &= ~swi2c_scl->bit_mask;
 		if (swi2c_scl->pull_en)
-			outw(inw(swi2c_scl->pull_en) &
-				~swi2c_scl->pull_en_bit_mask,
-				swi2c_scl->pull_en);
+			REG16_VAL(swi2c_scl->pull_en) &=
+					~swi2c_scl->pull_en_bit_mask;
 	} else {
-		outw(inw(swi2c_scl->gpio_en) | swi2c_scl->bit_mask,
-			swi2c_scl->gpio_en);
-		outw(inw(swi2c_scl->out_en) | swi2c_scl->bit_mask,
-			swi2c_scl->out_en);
-		outw(inw(swi2c_scl->data_out) & ~swi2c_scl->bit_mask,
-			swi2c_scl->data_out);
+		REG16_VAL(swi2c_scl->gpio_en) |= swi2c_scl->bit_mask;
+		REG16_VAL(swi2c_scl->out_en) |= swi2c_scl->bit_mask;
+		REG16_VAL(swi2c_scl->data_out) &= ~swi2c_scl->bit_mask;
 	}
 }
 
@@ -310,24 +300,24 @@ rx_end:
 	return ret;
 }
 
-void wmt_swi2c_reg_bk(struct swi2c_reg_s *reg_p,
-	struct swi2c_reg_bk_t *reg_bk, int bk)
+void wmt_swi2c_reg_bk(swi2c_reg_t *reg_p, struct swi2c_reg_bk_t *reg_bk,
+	int bk)
 {
 	if (bk) {
-		reg_bk->gpio_en = inw(reg_p->gpio_en);
-		reg_bk->out_en = inw(reg_p->out_en);
-		reg_bk->data_out = inw(reg_p->data_out);
-		reg_bk->pull_en = inw(reg_p->pull_en);
+		reg_bk->gpio_en = REG16_VAL(reg_p->gpio_en);
+		reg_bk->out_en = REG16_VAL(reg_p->out_en);
+		reg_bk->data_out = REG16_VAL(reg_p->data_out);
+		reg_bk->pull_en = REG16_VAL(reg_p->pull_en);
 	} else {
-		outw(reg_bk->gpio_en, reg_p->gpio_en);
-		outw(reg_bk->out_en, reg_p->out_en);
-		outw(reg_bk->data_out, reg_p->data_out);
-		outw(reg_bk->pull_en, reg_p->pull_en);
+		REG16_VAL(reg_p->gpio_en) = reg_bk->gpio_en;
+		REG16_VAL(reg_p->out_en) = reg_bk->out_en;
+		REG16_VAL(reg_p->data_out) = reg_bk->data_out;
+		REG16_VAL(reg_p->pull_en) = reg_bk->pull_en;
 	}
 }
 
 int wmt_swi2c_read(
-	struct swi2c_handle_s *handle,
+	swi2c_handle_t *handle,
 	char addr,
 	char index,
 	char *buf,
@@ -364,7 +354,7 @@ exit:
 EXPORT_SYMBOL(wmt_swi2c_read);
 
 int wmt_swi2c_write(
-	struct swi2c_handle_s *handle,
+	swi2c_handle_t *handle,
 	char addr,
 	char index,
 	char *buf,
@@ -396,11 +386,11 @@ exit:
 }
 EXPORT_SYMBOL(wmt_swi2c_write);
 
-int wmt_swi2c_check(struct swi2c_handle_s *handle)
+int wmt_swi2c_check(swi2c_handle_t *handle)
 {
 	int ret = 0;
 #if 0
-	struct swi2c_reg_s *reg_p;
+	swi2c_reg_t *reg_p;
 	struct swi2c_reg_bk_t scl_bk, sda_bk;
 
 	swi2c_scl = handle->scl_reg;
@@ -410,15 +400,15 @@ int wmt_swi2c_check(struct swi2c_handle_s *handle)
 	wmt_swi2c_reg_bk(swi2c_sda, &sda_bk, 1);
 	reg_p = handle->scl_reg;
 	do {
-		outw(inw(reg_p->gpio_en) | reg_p->bit_mask, reg_p->gpio_en);
-		outw(inw(reg_p->out_en) | reg_p->bit_mask, reg_p->out_en);
-		outw(inw(reg_p->data_out) & ~reg_p->bit_mask, reg_p->data_out);
+		REG16_VAL(reg_p->gpio_en) |= reg_p->bit_mask;
+		REG16_VAL(reg_p->out_en) |= reg_p->bit_mask;
+		REG16_VAL(reg_p->data_out) &= ~reg_p->bit_mask;
 
-		outw(inw(reg_p->out_en) & ~reg_p->bit_mask, reg_p->out_en);
+		REG16_VAL(reg_p->out_en) &= ~reg_p->bit_mask;
 		if (reg_p->pull_en)
-			outw(inw(reg_p->pull_en) & ~reg_p->pull_en_bit_mask,
-				reg_p->pull_en);
-		if (inw(reg_p->data_in) & reg_p->bit_mask) {
+			REG16_VAL(reg_p->pull_en) &= ~reg_p->pull_en_bit_mask;
+		if (*(volatile unsigned short *)(reg_p->data_in) &
+			reg_p->bit_mask) {
 			if (reg_p == handle->sda_reg)
 				break;
 			reg_p = handle->sda_reg;

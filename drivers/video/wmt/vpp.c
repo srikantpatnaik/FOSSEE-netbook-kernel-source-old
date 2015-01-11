@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/vpp.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,16 +28,16 @@
 
 #include "vpp.h"
 
-struct vpp_mod_base_t *vpp_mod_base_list[VPP_MOD_MAX];
+vpp_mod_base_t *vpp_mod_base_list[VPP_MOD_MAX];
 
 unsigned int vpp_get_chipid(void)
 {
 	/* byte 3,2: chip id, byte 1:ver id, byte 0:sub id */
 	/* ex: 0x34290101 (0x3429 A0), 0x34290102 (0x3429 A1) */
-	return inl(SYSTEM_CFG_CTRL_BASE_ADDR);
+	return REG32_VAL(SYSTEM_CFG_CTRL_BASE_ADDR);
 }
 
-inline void vpp_cache_sync(void)
+__inline__ void vpp_cache_sync(void)
 {
 	/* TODO */
 }
@@ -67,7 +67,7 @@ void vpp_set_clock_enable(enum dev_id dev, int enable, int force)
 /*----------------------- vpp module --------------------------------------*/
 void vpp_mod_unregister(vpp_mod_t mod)
 {
-	struct vpp_mod_base_t *mod_p;
+	vpp_mod_base_t *mod_p;
 
 	if (mod >= VPP_MOD_MAX)
 		return;
@@ -81,10 +81,10 @@ void vpp_mod_unregister(vpp_mod_t mod)
 	vpp_mod_base_list[mod] = 0;
 }
 
-struct vpp_mod_base_t *vpp_mod_register(vpp_mod_t mod,
+vpp_mod_base_t *vpp_mod_register(vpp_mod_t mod,
 					int size, unsigned int flags)
 {
-	struct vpp_mod_base_t *mod_p;
+	vpp_mod_base_t *mod_p;
 
 	if (mod >= VPP_MOD_MAX)
 		return 0;
@@ -101,10 +101,10 @@ struct vpp_mod_base_t *vpp_mod_register(vpp_mod_t mod,
 	mod_p->mod = mod;
 
 	if (flags & VPP_MOD_FLAG_FRAMEBUF) {
-		mod_p->fb_p = kmalloc(sizeof(struct vpp_fb_base_t), GFP_KERNEL);
+		mod_p->fb_p = kmalloc(sizeof(vpp_fb_base_t), GFP_KERNEL);
 		if (!mod_p->fb_p)
 			goto error;
-		memset(mod_p->fb_p, 0, sizeof(struct vpp_fb_base_t));
+		memset(mod_p->fb_p, 0, sizeof(vpp_fb_base_t));
 	}
 	DBG_DETAIL(" %d,0x%x,0x%x\n", mod, (int)mod_p, (int)mod_p->fb_p);
 	return mod_p;
@@ -114,16 +114,16 @@ error:
 	return 0;
 }
 
-struct vpp_mod_base_t *vpp_mod_get_base(vpp_mod_t mod)
+vpp_mod_base_t *vpp_mod_get_base(vpp_mod_t mod)
 {
 	if (mod >= VPP_MOD_MAX)
 		return 0;
 	return vpp_mod_base_list[mod];
 }
 
-struct vpp_fb_base_t *vpp_mod_get_fb_base(vpp_mod_t mod)
+vpp_fb_base_t *vpp_mod_get_fb_base(vpp_mod_t mod)
 {
-	struct vpp_mod_base_t *mod_p;
+	vpp_mod_base_t *mod_p;
 	mod_p = vpp_mod_get_base(mod);
 	if (mod_p)
 		return mod_p->fb_p;
@@ -132,7 +132,7 @@ struct vpp_fb_base_t *vpp_mod_get_fb_base(vpp_mod_t mod)
 
 vdo_framebuf_t *vpp_mod_get_framebuf(vpp_mod_t mod)
 {
-	struct vpp_mod_base_t *mod_p;
+	vpp_mod_base_t *mod_p;
 
 	mod_p = vpp_mod_get_base(mod);
 	if (mod_p && mod_p->fb_p)
@@ -142,7 +142,7 @@ vdo_framebuf_t *vpp_mod_get_framebuf(vpp_mod_t mod)
 
 void vpp_mod_set_clock(vpp_mod_t mod, vpp_flag_t enable, int force)
 {
-	struct vpp_mod_base_t *base;
+	vpp_mod_base_t *base;
 	enum dev_id pll_dev;
 	int cur_sts;
 	int ret;
@@ -209,20 +209,17 @@ unsigned int vpp_get_base_clock(vpp_mod_t mod)
 	return clock;
 }
 
+#if 1
 void vpp_show_timing(char *str, struct fb_videomode *vmode,
 					vpp_clock_t *clk)
 {
 	DPRINT("----- %s timing -----\n", str);
 	if (vmode) {
-		int pixclk;
-
-		pixclk = (vmode->pixclock) ? PICOS2KHZ(vmode->pixclock) : 0;
-		pixclk *= 1000;
-
 		DPRINT("res(%d,%d),fps %d\n",
 			vmode->xres, vmode->yres, vmode->refresh);
 		DPRINT("pixclk %d(%d),hsync %d,vsync %d\n", vmode->pixclock,
-			pixclk, vmode->hsync_len, vmode->vsync_len);
+			(int)(PICOS2KHZ(vmode->pixclock) * 1000),
+			vmode->hsync_len, vmode->vsync_len);
 		DPRINT("left %d,right %d,upper %d,lower %d\n",
 			vmode->left_margin, vmode->right_margin,
 			vmode->upper_margin, vmode->lower_margin);
@@ -275,6 +272,7 @@ void vpp_show_videomode(char *str, struct fb_videomode *v)
 		(v->vmode & FB_VMODE_DOUBLE) ? 1 : 0);
 	DPRINT("-----------------------\n");
 }
+#endif
 
 vpp_csc_t vpp_check_csc_mode(vpp_csc_t mode, vdo_color_fmt src_fmt,
 				vdo_color_fmt dst_fmt, unsigned int flags)
@@ -322,6 +320,19 @@ int vpp_set_recursive_scale(vdo_framebuf_t *src_fb,
 #endif
 }
 
+void vpp_reg_dump(unsigned int addr, int size)
+{
+	int i;
+
+	for (i = 0; i < size; i += 16) {
+		DPRINT("0x%8x : 0x%08x 0x%08x 0x%08x 0x%08x\n",
+			addr + i, vppif_reg32_in(addr + i),
+			vppif_reg32_in(addr + i + 4),
+			vppif_reg32_in(addr + i + 8),
+			vppif_reg32_in(addr + i + 12));
+	}
+} /* End of vpp_reg_dump */
+
 unsigned int vpp_convert_colfmt(int yuv2rgb, unsigned int data)
 {
 	unsigned int r, g, b;
@@ -367,6 +378,39 @@ unsigned int vpp_convert_colfmt(int yuv2rgb, unsigned int data)
 	return data;
 }
 
+unsigned int *vpp_backup_reg(unsigned int addr, unsigned int size)
+{
+	unsigned int *ptr;
+	int i;
+
+	size += 4;
+	ptr = kmalloc(size, GFP_KERNEL);
+	if (ptr == 0) {
+		DPRINT("[VPP] *E* malloc backup fail\n");
+		return 0;
+	}
+
+	for (i = 0; i < size; i += 4)
+		ptr[i / 4] = REG32_VAL(addr + i);
+	return ptr;
+} /* End of vpp_backup_reg */
+
+int vpp_restore_reg(unsigned int addr, unsigned int size,
+					unsigned int *reg_ptr)
+{
+	int i;
+
+	if (reg_ptr == NULL)
+		return 0;
+
+	size += 4;
+	for (i = 0; i < size; i += 4)
+		REG32_VAL(addr + i) = reg_ptr[i / 4];
+	kfree(reg_ptr);
+	reg_ptr = 0;
+	return 0;
+} /* End of vpp_restore_reg */
+
 void vpp_get_sys_parameter(void)
 {
 #ifndef CONFIG_VPOST
@@ -381,15 +425,11 @@ void vpp_get_sys_parameter(void)
 	g_vpp.hdmi_audio_interface = VPP_HDMI_AUDIO_SPDIF;
 	g_vpp.hdmi_cp_enable = 1;
 
-#ifdef CONFIG_KERNEL
-	if (govrh_get_MIF_enable(p_govrh))
-		g_vpp.govrh_preinit = 1;
-	if (govrh_get_MIF_enable(p_govrh2))
-		g_vpp.govrh_preinit = 1;
-	MSG("[VPP] govrh preinit %d\n", g_vpp.govrh_preinit);
-#else
-	g_vpp.govrh_preinit = 0;
-	p_scl->scale_sync = 1;
+#if 0
+	if (wmt_getsyspara("wmt.display.direct_path", buf, &varlen) == 0) {
+		sscanf(buf, "%d", &g_vpp.direct_path);
+		DPRINT("[VPP] direct path %d\n", g_vpp.direct_path);
+	}
 #endif
 
 #ifndef CONFIG_VPOST
@@ -398,6 +438,16 @@ void vpp_get_sys_parameter(void)
 			g_vpp.hdmi_audio_interface = VPP_HDMI_AUDIO_I2S;
 		else if (memcmp(buf, "spdif", 5) == 0)
 			g_vpp.hdmi_audio_interface = VPP_HDMI_AUDIO_SPDIF;
+	}
+
+	if (wmt_getsyspara("wmt.display.hdmi.vmode", buf, &varlen) == 0) {
+		if (memcmp(buf, "720p", 4) == 0)
+			g_vpp.hdmi_video_mode = 720;
+		else if (memcmp(buf, "1080p", 5) == 0)
+			g_vpp.hdmi_video_mode = 1080;
+		else
+			g_vpp.hdmi_video_mode = 0;
+		DPRINT("[VPP] HDMI video mode %d\n", g_vpp.hdmi_video_mode);
 	}
 
 	g_vpp.mb_colfmt = VPP_UBOOT_COLFMT;
@@ -414,6 +464,19 @@ void vpp_get_sys_parameter(void)
 	p_govrh->fb_p->fb.col_fmt = g_vpp.mb_colfmt;
 	p_govrh2->fb_p->fb.col_fmt = g_vpp.mb_colfmt;
 
+	/* [uboot parameter] dual display : 0-single display, 1-dual display */
+	g_vpp.dual_display = 1;
+	if (wmt_getsyspara("wmt.display.dual", buf, &varlen) == 0) {
+		unsigned int parm[1];
+
+		MSG("display dual : %s\n", buf);
+		vpp_parse_param(buf, (unsigned int *)parm, 1, 0);
+		g_vpp.dual_display = parm[0];
+	}
+
+	if (g_vpp.dual_display == 0)
+		g_vpp.alloc_framebuf = 0;
+
 	if (wmt_getsyspara("wmt.display.hdmi", buf, &varlen) == 0) {
 		unsigned int parm[1];
 
@@ -424,47 +487,6 @@ void vpp_get_sys_parameter(void)
 
 	if (wmt_getsyspara("wmt.hdmi.disable", buf, &varlen) == 0)
 		g_vpp.hdmi_disable = 1;
-
-	/* [uboot parameter] reg operation : addr op val */
-	if (wmt_getsyspara("wmt.display.regop", buf, &varlen) == 0) {
-		unsigned int addr;
-		unsigned int val;
-		char op;
-		char *p, *endp;
-
-		p = buf;
-		while (1) {
-			addr = simple_strtoul(p, &endp, 16);
-			if (*endp == '\0')
-				break;
-
-			op = *endp;
-			if (endp[1] == '~') {
-				val = simple_strtoul(endp + 2, &endp, 16);
-				val = ~val;
-			} else
-				val = simple_strtoul(endp + 1, &endp, 16);
-
-			DBG_DETAIL("  reg op: 0x%X %c 0x%X\n", addr, op, val);
-			switch (op) {
-			case '|':
-				outl(inl(addr) | val, addr);
-				break;
-			case '=':
-				outl(val, addr);
-				break;
-			case '&':
-				outl(inl(addr) & val, addr);
-				break;
-			default:
-				DBG_ERR("Error, Unknown operator %c\n", op);
-			}
-
-			if (*endp == '\0')
-				break;
-			p = endp + 1;
-		}
-	}
 #else
 	if (env_read_para("wmt.display.hdmi", &param) == 0) {
 		g_vpp.hdmi_sp_mode = strtoul(param.value, 0, 16);
@@ -475,9 +497,12 @@ void vpp_get_sys_parameter(void)
 
 void vpp_init(void)
 {
-	struct vpp_mod_base_t *mod_p;
+	vpp_mod_base_t *mod_p;
 	unsigned int mod_mask;
 	int i;
+	int no;
+
+	vpp_get_sys_parameter();
 
 	auto_pll_divisor(DEV_NA12, CLK_ENABLE, 0, 0);
 	auto_pll_divisor(DEV_VPP, CLK_ENABLE, 0, 0);
@@ -489,8 +514,20 @@ void vpp_init(void)
 	auto_pll_divisor(DEV_LVDS, CLK_ENABLE, 0, 0);
 	auto_pll_divisor(DEV_HDMILVDS, CLK_ENABLE, 0, 0);
 	auto_pll_divisor(DEV_SCL444U, CLK_ENABLE, 0, 0);
+#ifdef CONFIG_KERNEL
+	if (1) {
+		if (govrh_get_MIF_enable(p_govrh))
+			g_vpp.govrh_preinit = 1;
+		if (govrh_get_MIF_enable(p_govrh2))
+			g_vpp.govrh_preinit = 1;
+		MSG("[VPP] govrh preinit %d\n", g_vpp.govrh_preinit);
+	}
+#endif
 
-	vpp_get_sys_parameter();
+#ifndef CONFIG_VPP_DYNAMIC_ALLOC
+	if (g_vpp.alloc_framebuf)
+		g_vpp.alloc_framebuf(VPP_HD_MAX_RESX, VPP_HD_MAX_RESY);
+#endif
 
 	/* init video out module first */
 	if (g_vpp.govrh_preinit == 0) {
@@ -505,14 +542,11 @@ void vpp_init(void)
 		}
 	}
 
-#ifdef CONFIG_UBOOT
-	mod_mask =  BIT(VPP_MOD_SCL) | BIT(VPP_MOD_SCLW);
-#else
+#ifndef CONFIG_UBOOT
 	/* init other module */
 	mod_mask =  BIT(VPP_MOD_GOVW) | BIT(VPP_MOD_GOVM) | BIT(VPP_MOD_SCL)
 		| BIT(VPP_MOD_SCLW) | BIT(VPP_MOD_VPU) | BIT(VPP_MOD_VPUW)
 		| BIT(VPP_MOD_PIP) | BIT(VPP_MOD_VPPM);
-#endif
 	for (i = 0; i < VPP_MOD_MAX; i++) {
 		if (!(mod_mask & (0x01 << i)))
 			continue;
@@ -520,6 +554,7 @@ void vpp_init(void)
 		if (mod_p && mod_p->init)
 			mod_p->init(mod_p);
 	}
+#endif
 
 #ifdef WMT_FTBLK_LVDS
 	if (!g_vpp.govrh_preinit)
@@ -529,11 +564,53 @@ void vpp_init(void)
 	hdmi_init();
 #endif
 
+	vpp_set_clock_enable(DEV_SCL444U, 0, 1);
+
 #ifndef CONFIG_VPOST
 	/* init vout device & get default resolution */
 	vout_init();
 #endif
-	vpp_set_clock_enable(DEV_SCL444U, 0, 1);
+
+#ifdef CONFIG_KERNEL
+	no = (g_vpp.virtual_display_mode == 1) ? 1 : 0;
+	if (g_vpp.govrh_preinit) {
+		struct fb_videomode vmode;
+		vout_info_t *info;
+		govrh_mod_t *govr;
+
+		info = vout_get_info_entry(no);
+		govr = vout_info_get_govr(no);
+		govrh_get_videomode(govr, &vmode);
+		govrh_get_framebuffer(govr, &info->fb);
+		g_vpp.govrh_init_yres = vmode.yres;
+		if ((info->resx != vmode.xres) || (info->resy != vmode.yres)) {
+			g_vpp.govrh_preinit = 0;
+			DPRINT("preinit not match (%dx%d) --> (%dx%d)\n",
+				vmode.xres, vmode.yres, info->resx, info->resy);
+			if (g_vpp.virtual_display || (g_vpp.dual_display == 0)) {
+				if(!hdmi_get_plugin()) {
+					vout_t *vo = vout_get_entry(VPP_VOUT_NUM_DVI);
+					if(vo->dev && !strcmp(vo->dev->name, "CS8556") && vo->dev->init) {
+						vo->dev->init(vo);
+					}
+				}
+			}
+		}
+	}
+
+	if (!g_vpp.govrh_preinit) {
+		struct fb_videomode vmode;
+		vout_info_t *info;
+
+		info = vout_get_info_entry(no);
+		memset(&vmode, 0, sizeof(struct fb_videomode));
+		vmode.xres = info->resx;
+		vmode.yres = info->resy;
+		vmode.refresh = info->fps;
+		if (vout_find_match_mode(no, &vmode, 1) == 0)
+			vout_config(VPP_VOUT_ALL, info, &vmode);
+	}
+#endif
 	vpp_set_clock_enable(DEV_HDMII2C, 0, 0);
 	vpp_set_clock_enable(DEV_HDMI, 0, 0);
 	vpp_set_clock_enable(DEV_HDCE, 0, 0);
@@ -614,20 +691,20 @@ void vpp_set_NA12_hiprio(int type)
 
 	switch (type) {
 	case 0: /* restore NA12 priority */
-		outl(reg1, MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8);
-		outl(reg2, MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC);
+		vppif_reg32_out(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8, reg1);
+		vppif_reg32_out(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC, reg2);
 		break;
 	case 1:	/* set NA12 to high priority */
-		reg1 = inl(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8);
-		reg2 = inl(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC);
-		outl(0x600000, MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8);
-		outl(0x0ff00000, MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC);
+		reg1 = vppif_reg32_in(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8);
+		reg2 = vppif_reg32_in(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC);
+		vppif_reg32_out(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8, 0x600000);
+		vppif_reg32_out(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC, 0x0ff00000);
 		break;
 	case 2:
-		reg1 = inl(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8);
-		reg2 = inl(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC);
-		outl(0x20003f, MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8);
-		outl(0x00ffff00, MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC);
+		reg1 = vppif_reg32_in(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8);
+		reg2 = vppif_reg32_in(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC);
+		vppif_reg32_out(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0x8, 0x20003f);
+		vppif_reg32_out(MEMORY_CTRL_V4_CFG_BASE_ADDR + 0xC, 0x00ffff00);
 		break;
 	default:
 		break;
@@ -638,16 +715,170 @@ void vpp_set_NA12_hiprio(int type)
 #ifdef __KERNEL__
 int vpp_set_audio(int format, int sample_rate, int channel)
 {
-	struct vout_audio_t info;
+	vout_audio_t info;
 
-	MSG("set audio(fmt %d,rate %d,ch %d)\n",
+	DBG_MSG("set audio(fmt %d,rate %d,ch %d)\n",
 		format, sample_rate, channel);
 	info.fmt = format;
 	info.sample_rate = sample_rate;
 	info.channel = channel;
 	return vout_set_audio(&info);
 }
+
+static DEFINE_SEMAPHORE(vpp_sem);
+static DEFINE_SEMAPHORE(vpp_sem2);
+void vpp_set_mutex(int idx, int lock)
+{
+	struct semaphore *sem;
+
+	sem = ((g_vpp.dual_display == 0) || (idx == 0)) ? &vpp_sem : &vpp_sem2;
+	if (lock)
+		down(sem);
+	else
+		up(sem);
+}
+
+void vpp_free_framebuffer(void)
+{
+	if (g_vpp.mb[0] == 0)
+		return;
+	MSG("mb free 0x%x\n", g_vpp.mb[0]);
+	mb_free(g_vpp.mb[0]);
+	vpp_lock();
+	g_vpp.mb[0] = 0;
+	vpp_unlock();
+}
+
+int vpp_alloc_framebuffer(unsigned int resx, unsigned int resy)
+{
+	unsigned int y_size;
+	unsigned int fb_size;
+	unsigned int colfmt;
+	int y_bpp, c_bpp;
+	int i;
+
+#ifdef CONFIG_VPP_DYNAMIC_ALLOC
+	if (g_vpp.mb[0]) {
+		vpp_free_framebuffer();
+	}
 #endif
+
+	if ((resx == 0) && (resy == 0)) {
+		return -1;
+	}
+
+	/* alloc govw & govrh frame buffer */
+	if (g_vpp.mb[0] == 0) {
+		unsigned int mb_resx, mb_resy;
+		int fb_num;
+		unsigned int phy_base;
+
+#ifdef CONFIG_VPP_DYNAMIC_ALLOC
+		mb_resx = resx;
+		mb_resy = resy;
+		colfmt = g_vpp.mb_colfmt;
+		vpp_get_colfmt_bpp(colfmt, &y_bpp, &c_bpp);
+		fb_num = VPP_MB_ALLOC_NUM;
+#else
+		char buf[100];
+		int varlen = 100;
+
+		if (wmt_getsyspara("wmt.display.mb", (unsigned char *)buf,
+			&varlen) == 0) {
+			unsigned int parm[10];
+
+			vpp_parse_param(buf, (unsigned int *)parm, 4, 0);
+			MSG("boot parm mb (%d,%d),bpp %d,fb %d\n",
+					parm[0], parm[1], parm[2], parm[3]);
+			mb_resx = parm[0];
+			mb_resy = parm[1];
+			y_bpp = parm[2] * 8;
+			c_bpp = 0;
+			fb_num = parm[3];
+		} else {
+			mb_resx = VPP_HD_MAX_RESX;
+			mb_resy = VPP_HD_MAX_RESY;
+			colfmt = g_vpp.mb_colfmt;
+			vpp_get_colfmt_bpp(colfmt, &y_bpp, &c_bpp);
+			fb_num = VPP_MB_ALLOC_NUM;
+		}
+#endif
+		mb_resx = vpp_calc_align(mb_resx,
+				VPP_FB_ADDR_ALIGN / (y_bpp / 8));
+		y_size = mb_resx * mb_resy * y_bpp / 8;
+		fb_size = mb_resx * mb_resy * (y_bpp + c_bpp) / 8;
+		g_vpp.mb_fb_size = fb_size;
+		g_vpp.mb_y_size = y_size;
+		phy_base = mb_alloc(fb_size * fb_num);
+		if (phy_base) {
+			MSG("mb alloc 0x%x,%d\n", phy_base, fb_size * fb_num);
+			for (i = 0; i < fb_num; i++) {
+				g_vpp.mb[i] = (unsigned int)(phy_base +
+					(fb_size * i));
+				MSG("mb 0x%x,fb %d,y %d\n", g_vpp.mb[i],
+					fb_size, y_size);
+			}
+		} else {
+			DBG_ERR("alloc fail\n");
+			return -1;
+		}
+		if (!g_vpp.govrh_preinit) { /* keep uboot logo */
+			memset(mb_phys_to_virt(phy_base), 0, fb_size);
+			MSG("mb clean 0x%x %d\n", phy_base, fb_size);
+		}
+	}
+
+	vpp_lock();
+#ifdef CONFIG_VPP_STREAM_ROTATE
+	{
+		unsigned int resx_mb;
+
+		g_vpp.stream_mb_cnt = VPP_MB_ALLOC_NUM;
+		colfmt = VDO_COL_FMT_YUV422H;
+		vpp_get_colfmt_bpp(colfmt, &y_bpp, &c_bpp);
+		resx_mb = vpp_calc_fb_width(colfmt, resx);
+		y_size = resx_mb * resy * y_bpp / 8;
+		fb_size = vpp_calc_align(resx_mb, 64) * resy *
+			(y_bpp + c_bpp) / 8;
+		for (i = 0; i < g_vpp.stream_mb_cnt; i++) {
+			g_vpp.stream_mb[i] = g_vpp.mb[0] + fb_size * i;
+		}
+	}
+#else
+	/* assign mb to stream mb */
+	{
+	int index = 0, offset = 0;
+	unsigned int size = g_vpp.mb_fb_size;
+	unsigned int resx_fb;
+
+	colfmt = VPP_UBOOT_COLFMT;
+	vpp_get_colfmt_bpp(colfmt, &y_bpp, &c_bpp);
+	resx_fb = vpp_calc_fb_width(colfmt, resx);
+	y_size = resx_fb * resy * y_bpp / 8;
+	fb_size = vpp_calc_align(resx_fb, 64) * resy * (y_bpp + c_bpp) / 8;
+	g_vpp.stream_mb_y_size = y_size;
+	g_vpp.stream_mb_cnt = VPP_STREAM_MB_ALLOC_NUM;
+	for (i = 0; i < VPP_STREAM_MB_ALLOC_NUM; i++) {
+		if (size < fb_size) {
+			index++;
+			if (index >= VPP_MB_ALLOC_NUM) {
+				index = 0;
+				g_vpp.stream_mb_cnt = i;
+				break;
+			}
+			offset = 0;
+			size = g_vpp.mb_fb_size;
+		}
+		g_vpp.stream_mb[i] = g_vpp.mb[index] + offset;
+		size -= fb_size;
+		offset += fb_size;
+		DBG_DETAIL("stream mb %d 0x%x\n", i, g_vpp.stream_mb[i]);
+	}
+	}
+#endif
+	vpp_unlock();
+	return 0;
+} /* End of vpp_alloc_framebuffer */
 
 /*----------------------- vpp mb for stream ---------------------------------*/
 #ifdef CONFIG_VPP_STREAM_CAPTURE
@@ -677,12 +908,11 @@ int vpp_mb_get(unsigned int phy)
 
 #ifdef CONFIG_VPP_STREAM_BLOCK
 	vpp_unlock();
-	if (g_vpp.stream_mb_sync_flag)
-		vpp_dbg_show(VPP_DBGLVL_STREAM, 0, "mb_get wait");
-
-	i = wait_event_interruptible_timeout(vpp_mb_event,
-		(g_vpp.stream_mb_sync_flag != 1), HZ / 20);
+	i = wait_event_interruptible(vpp_mb_event,
+		(g_vpp.stream_mb_sync_flag != 1));
 	vpp_lock();
+	if (i)
+		return -1;
 #else /* non-block */
 	if (g_vpp.stream_mb_sync_flag) { /* not new mb updated */
 		vpp_dbg_show(VPP_DBGLVL_STREAM, 0,
@@ -766,10 +996,49 @@ int vpp_mb_irqproc_sync(int arg)
 	return 0;
 }
 
+void vpp_mb_scale_bitblit(vdo_framebuf_t *fb)
+{
+	int index = g_vpp.stream_mb_index;
+	vdo_framebuf_t src, dst;
+
+	if (p_scl->scale_complete == 0)
+		return;
+
+#ifdef CONFIG_VPP_STREAM_ROTATE
+	index = g_vpp.stream_mb_index + 1;
+	index = (index >= g_vpp.stream_mb_cnt) ? 0 : index;
+#else
+	do {
+		index++;
+		if (index >= g_vpp.stream_mb_cnt)
+			index = 0;
+
+		if (g_vpp.stream_mb_lock & (0x1 << index))
+			continue;
+		break;
+	} while (1);
+#endif
+
+	g_vpp.stream_mb_index = index;
+	p_scl->scale_sync = 1;
+	src = *fb;
+#ifdef CONFIG_VPP_STREAM_FIX_RESOLUTION
+	dst = g_vpp.stream_fb;
+#else
+	dst = *fb;
+	dst.col_fmt = VDO_COL_FMT_YUV422H;
+	dst.fb_w = vpp_calc_align(dst.fb_w, 64);
+#endif
+	dst.y_addr = g_vpp.stream_mb[index];
+	dst.c_addr = dst.y_addr + (dst.fb_w * dst.img_h);
+	vpp_set_recursive_scale(&src, &dst);
+}
+#endif
+
 /*----------------------- irq proc --------------------------------------*/
-struct vpp_irqproc_t *vpp_irqproc_array[32];
+vpp_irqproc_t *vpp_irqproc_array[32];
 struct list_head vpp_irqproc_free_list;
-struct vpp_proc_t vpp_proc_array[VPP_PROC_NUM];
+vpp_proc_t vpp_proc_array[VPP_PROC_NUM];
 static void vpp_irqproc_do_tasklet(unsigned long data);
 
 void vpp_irqproc_init(void)
@@ -782,7 +1051,7 @@ void vpp_irqproc_init(void)
 		list_add_tail(&vpp_proc_array[i].list, &vpp_irqproc_free_list);
 }
 
-struct vpp_irqproc_t *vpp_irqproc_get_entry(enum vpp_int_t vpp_int)
+vpp_irqproc_t *vpp_irqproc_get_entry(vpp_int_t vpp_int)
 {
 	int no;
 
@@ -795,9 +1064,9 @@ struct vpp_irqproc_t *vpp_irqproc_get_entry(enum vpp_int_t vpp_int)
 	}
 
 	if (vpp_irqproc_array[no] == 0) { /* will create in first use */
-		struct vpp_irqproc_t *irqproc;
+		vpp_irqproc_t *irqproc;
 
-		irqproc = kmalloc(sizeof(struct vpp_irqproc_t), GFP_KERNEL);
+		irqproc = kmalloc(sizeof(vpp_irqproc_t), GFP_KERNEL);
 		vpp_irqproc_array[no] = irqproc;
 		INIT_LIST_HEAD(&irqproc->list);
 		tasklet_init(&irqproc->tasklet,
@@ -807,8 +1076,8 @@ struct vpp_irqproc_t *vpp_irqproc_get_entry(enum vpp_int_t vpp_int)
 	return vpp_irqproc_array[no];
 } /* End of vpp_irqproc_get_entry */
 
-void vpp_irqproc_set_ref(struct vpp_irqproc_t *irqproc,
-				enum vpp_int_t type, int enable)
+void vpp_irqproc_set_ref(vpp_irqproc_t *irqproc,
+				vpp_int_t type, int enable)
 {
 	if (enable) {
 		irqproc->ref++;
@@ -826,20 +1095,20 @@ static void vpp_irqproc_do_tasklet
 	unsigned long data		/*!<; // tasklet input data */
 )
 {
-	struct vpp_irqproc_t *irqproc;
+	vpp_irqproc_t *irqproc;
 
 	vpp_lock();
 	irqproc = vpp_irqproc_get_entry(data);
 	if (irqproc) {
 		struct list_head *cur;
 		struct list_head *next;
-		struct vpp_proc_t *entry;
+		vpp_proc_t *entry;
 
 		next = (&irqproc->list)->next;
 		while (next != &irqproc->list) {
 			cur = next;
 			next = cur->next;
-			entry = list_entry(cur, struct vpp_proc_t, list);
+			entry = list_entry(cur, vpp_proc_t, list);
 			if (entry->func) {
 				if (entry->func(entry->arg))
 					continue;
@@ -864,7 +1133,7 @@ static void vpp_irqproc_do_tasklet
 } /* End of vpp_irqproc_do_tasklet */
 
 int vpp_irqproc_work(
-	enum vpp_int_t type,		/* interrupt type */
+	vpp_int_t type,             /* interrupt type */
 	int (*func)(void *argc),    /* proc function pointer */
 	void *arg,                  /* proc argument */
 	int wait_ms,                /* wait complete timeout (ms) */
@@ -872,14 +1141,12 @@ int vpp_irqproc_work(
 )
 {
 	int ret;
-	struct vpp_proc_t *entry;
+	vpp_proc_t *entry;
 	struct list_head *ptr;
-	struct vpp_irqproc_t *irqproc;
+	vpp_irqproc_t *irqproc;
 
-#if 0
-	DPRINT("[VPP] vpp_irqproc_work(type 0x%x,wait %d,cnt %d)\n",
-		type, wait_ms, work_cnt);
-#endif
+	/* DPRINT("[VPP] vpp_irqproc_work(type 0x%x,wait %d)\n",type,wait); */
+
 	if ((vpp_irqproc_free_list.next == 0) ||
 		list_empty(&vpp_irqproc_free_list)) {
 		if (func)
@@ -891,7 +1158,7 @@ int vpp_irqproc_work(
 	vpp_lock();
 
 	ptr = vpp_irqproc_free_list.next;
-	entry = list_entry(ptr, struct vpp_proc_t, list);
+	entry = list_entry(ptr, vpp_proc_t, list);
 	list_del_init(ptr);
 	entry->func = func;
 	entry->arg = arg;
@@ -940,24 +1207,24 @@ int vpp_irqproc_work(
 } /* End of vpp_irqproc_work */
 
 void vpp_irqproc_del_work(
-	enum vpp_int_t type,	/* interrupt type */
+	vpp_int_t type,         /* interrupt type */
 	int (*func)(void *argc)	/* proc function pointer */
 )
 {
-	struct vpp_irqproc_t *irqproc;
+	vpp_irqproc_t *irqproc;
 
 	vpp_lock();
 	irqproc = vpp_irqproc_get_entry(type);
 	if (irqproc) {
 		struct list_head *cur;
 		struct list_head *next;
-		struct vpp_proc_t *entry;
+		vpp_proc_t *entry;
 
 		next = (&irqproc->list)->next;
 		while (next != &irqproc->list) {
 			cur = next;
 			next = cur->next;
-			entry = list_entry(cur, struct vpp_proc_t, list);
+			entry = list_entry(cur, vpp_proc_t, list);
 			if (entry->func == func) {
 				vpp_irqproc_set_ref(irqproc, type, 0);
 				list_del_init(cur);
@@ -986,9 +1253,11 @@ static struct switch_dev vpp_sdev_hdcp = {
 	.name = "hdcp",
 };
 
+#if 0
 static struct switch_dev vpp_sdev_audio = {
 	.name = "hdmi_audio",
 };
+#endif
 
 struct vpp_netlink_proc_t vpp_netlink_proc[VPP_NETLINK_PROC_MAX];
 static struct sock *vpp_nlfd;
@@ -1056,109 +1325,107 @@ static ssize_t attr_show_parsed_edid(struct device *dev,
 	if(strlen(edid_parsed.tv_name.monitor_name) != 0)
 		DPRINT("Monitor Name: %s\n", edid_parsed.tv_name.monitor_name);
 
-	for (i = 0; i < AUD_SAD_NUM; i++) {
-		if (edid_parsed.sad[i].flag == 0) {
-			if (i == 0)
-				DPRINT("No SAD Data\n");
+	for(i = 0; i < AUD_SAD_NUM; i++) {
+		if(edid_parsed.sad[i].flag == 0) {
+			if(i == 0)
+				printk("No SAD Data\n");
 			break;
 		}
 		DPRINT("SAD %d: 0x%02X 0x%02X 0x%02X\n", i,
-			edid_parsed.sad[i].sad_byte[0],
-			edid_parsed.sad[i].sad_byte[1],
+			edid_parsed.sad[i].sad_byte[0], edid_parsed.sad[i].sad_byte[1],
 			edid_parsed.sad[i].sad_byte[2]);
 	}
 	DPRINT("--------------------------\n");
 #endif
 	/* print Vendor Name */
-	if (strlen(edid_parsed.tv_name.vendor_name) != 0) {
+	if(strlen(edid_parsed.tv_name.vendor_name) != 0) {
 		len += sprintf(buf + len, "%-16s", "Vendor Name");
 		len += sprintf(buf + len, ": %s\n", edid_parsed.tv_name.vendor_name);
 	}
 
 	/* print Monitor Name */
-	if (strlen(edid_parsed.tv_name.monitor_name) != 0) {
+	if(strlen(edid_parsed.tv_name.monitor_name) != 0) {
 		len += sprintf(buf + len, "%-16s", "Monitor Name");
 		len += sprintf(buf + len, ": %s\n", edid_parsed.tv_name.monitor_name);
 	}
 
-	for (i = 0; i < AUD_SAD_NUM; i++) {
-		if (edid_parsed.sad[i].flag == 0)
+	for(i = 0; i < AUD_SAD_NUM; i++) {
+		if(edid_parsed.sad[i].flag == 0)
 			break;
 		/*
 		SAD Byte 1 (format and number of channels):
-		bit 7: Reserved (0)
-		bit 6..3: Audio format code
-		1 = Linear Pulse Code Modulation (LPCM)
-		2 = AC-3
-		3 = MPEG1 (Layers 1 and 2)
-		4 = MP3
-		5 = MPEG2
-		6 = AAC
-		7 = DTS
-		8 = ATRAC
-		0, 15: Reserved
-		9 = One-bit audio aka SACD
-		10 = DD+
-		11 = DTS-HD
-		12 = MLP/Dolby TrueHD
-		13 = DST Audio
-		14 = Microsoft WMA Pro
-		bit 2..0: number of channels minus 1
-		(i.e. 000 = 1 channel; 001 = 2 channels; 111 =
-		     8 channels)
+		   bit 7: Reserved (0)
+		   bit 6..3: Audio format code
+		     1 = Linear Pulse Code Modulation (LPCM)
+		     2 = AC-3
+		     3 = MPEG1 (Layers 1 and 2)
+		     4 = MP3
+		     5 = MPEG2
+		     6 = AAC
+		     7 = DTS
+		     8 = ATRAC
+		     0, 15: Reserved
+		     9 = One-bit audio aka SACD
+		    10 = DD+
+		    11 = DTS-HD
+		    12 = MLP/Dolby TrueHD
+		    13 = DST Audio
+		    14 = Microsoft WMA Pro
+		   bit 2..0: number of channels minus 1  (i.e. 000 = 1 channel; 001 = 2 channels; 111 =
+			     8 channels)
 		*/
 		audio_format = (edid_parsed.sad[i].sad_byte[0] & 0x78) >> 3;
-		if (audio_format == 0 || audio_format == 15)
+		if(audio_format == 0 || audio_format == 15)
 			continue;
 
 		/* print header */
 		len += sprintf(buf + len, "%-16s", "Audio Format");
 		len += sprintf(buf + len, ": ");
 
-		switch (audio_format) {
-		case 1:
-			len += sprintf(buf + len, "pcm");
+		switch(audio_format) {
+			case 1:
+				len += sprintf(buf + len, "pcm");
 			break;
-		case 2:
-			len += sprintf(buf + len, "ac3");
+			case 2:
+				len += sprintf(buf + len, "ac3");
 			break;
-		case 3:
-			len += sprintf(buf + len, "mpeg1");
+			case 3:
+				len += sprintf(buf + len, "mpeg1");
 			break;
-		case 4:
-			len += sprintf(buf + len, "mp3");
+			case 4:
+				len += sprintf(buf + len, "mp3");
 			break;
-		case 5:
-			len += sprintf(buf + len, "mpeg2");
+			case 5:
+				len += sprintf(buf + len, "mpeg2");
 			break;
-		case 6:
-			len += sprintf(buf + len, "aac");
+			case 6:
+				len += sprintf(buf + len, "aac");
 			break;
-		case 7:
-			len += sprintf(buf + len, "dts");
+			case 7:
+				len += sprintf(buf + len, "dts");
 			break;
-		case 8:
-			len += sprintf(buf + len, "atrac");
+			case 8:
+				len += sprintf(buf + len, "atrac");
 			break;
-		case 9:
-			len += sprintf(buf + len, "one_bit_audio");
+			case 9:
+				len += sprintf(buf + len, "one_bit_audio");
 			break;
-		case 10:
-			len += sprintf(buf + len, "eac3");
+			case 10:
+				len += sprintf(buf + len, "eac3");
 			break;
-		case 11:
-			len += sprintf(buf + len, "dts-hd");
+			case 11:
+				len += sprintf(buf + len, "dts-hd");
 			break;
-		case 12:
-			len += sprintf(buf + len, "mlp");
+			case 12:
+				len += sprintf(buf + len, "mlp");
 			break;
-		case 13:
-			len += sprintf(buf + len, "dst");
+			case 13:
+				len += sprintf(buf + len, "dst");
 			break;
-		case 14:
-			len += sprintf(buf + len, "wmapro");
+			case 14:
+				len += sprintf(buf + len, "wmapro");
 			break;
-		default:
+			default:
 			break;
 		}
 
@@ -1166,8 +1433,7 @@ static ssize_t attr_show_parsed_edid(struct device *dev,
 		len += sprintf(buf + len, ",");
 
 		/* number of channels */
-		len += sprintf(buf + len, "%d",
-			(edid_parsed.sad[i].sad_byte[0] & 0x7) + 1);
+		len += sprintf(buf + len, "%d", (edid_parsed.sad[i].sad_byte[0] & 0x7) + 1);
 
 		/* separator */
 		len += sprintf(buf + len, ",");
@@ -1185,85 +1451,78 @@ static ssize_t attr_show_parsed_edid(struct device *dev,
 		*/
 		sample_freq = edid_parsed.sad[i].sad_byte[1];
 		sample_freq_num = 0;
-		for (j = 0; j < 7; j++) {
-			if (sample_freq & (1 << j)) {
-				if (sample_freq_num != 0)
-					len += sprintf(buf + len,
-					"|"); /* separator */
-				switch (j) {
-				case 0:
-					len += sprintf(buf + len, "32KHz");
+		for(j = 0; j < 7; j++) {
+			if(sample_freq & (1 << j)) {
+				if(sample_freq_num != 0)
+					len += sprintf(buf + len, "|"); /* separator */
+				switch(j) {
+					case 0:
+						len += sprintf(buf + len, "32KHz");
 					break;
-				case 1:
-					len += sprintf(buf + len, "44KHz");
+					case 1:
+						len += sprintf(buf + len, "44KHz");
 					break;
-				case 2:
-					len += sprintf(buf + len, "48KHz");
+					case 2:
+						len += sprintf(buf + len, "48KHz");
 					break;
-				case 3:
-					len += sprintf(buf + len, "88KHz");
+					case 3:
+						len += sprintf(buf + len, "88KHz");
 					break;
-				case 4:
-					len += sprintf(buf + len, "96KHz");
+					case 4:
+						len += sprintf(buf + len, "96KHz");
 					break;
-				case 5:
-					len += sprintf(buf + len, "176KHz");
+					case 5:
+						len += sprintf(buf + len, "176KHz");
 					break;
-				case 6:
-					len += sprintf(buf + len, "192KHz");
+					case 6:
+						len += sprintf(buf + len, "192KHz");
 					break;
-				default:
+					default:
 					break;
 				}
 				sample_freq_num++;
 			}
 		}
 
-		if (sample_freq_num == 0)
-			len += sprintf(buf + len, "0");
+		if(sample_freq_num == 0)
+			len += sprintf(buf +len, "0");
 
 		/* separator */
 		len += sprintf(buf + len, ",");
 
 		/*
 		SAD Byte 3 (bitrate):
-		For LPCM, bits 7:3 are reserved and the remaining bits
-		define bit depth
-		bit 2: 24 bit
-		bit 1: 20 bit
-		bit 0: 16 bit
-		For all other sound formats, bits 7..0 designate the maximum
-		supported bitrate divided by 8 kbit/s.
+	 	 For LPCM, bits 7:3 are reserved and the remaining bits define bit depth
+	   	bit 2: 24 bit
+	  	bit 1: 20 bit
+	   	bit 0: 16 bit
+		For all other sound formats, bits 7..0 designate the maximum supported bitrate divided by
+		8 kbit/s.
 		*/
 		bitrate = edid_parsed.sad[i].sad_byte[2];
 		bitrate_num = 0;
-		if (audio_format == 1) { /* for LPCM */
-			for (j = 0; j < 3; j++) {
-				if (bitrate & (1 << j)) {
-					if (bitrate_num != 0)
-						len += sprintf(buf + len,
-						"|"); /* separator */
-					switch (j) {
-					case 0:
-						len += sprintf(buf + len,
-							"16bit");
+		if(audio_format == 1) { /* for LPCM */
+			for(j = 0; j < 3; j++) {
+				if(bitrate & (1 << j)) {
+					if(bitrate_num != 0)
+						len += sprintf(buf + len, "|"); /* separator */
+					switch(j) {
+						case 0:
+							len += sprintf(buf + len, "16bit");
 						break;
-					case 1:
-						len += sprintf(buf + len,
-							"20bit");
+						case 1:
+							len += sprintf(buf + len, "20bit");
 						break;
-					case 2:
-						len += sprintf(buf + len,
-							"24bit");
+						case 2:
+							len += sprintf(buf + len, "24bit");
 						break;
-					default:
+						default:
 						break;
 					}
 					bitrate_num++;
 				}
 			}
-		} else if (audio_format >= 2 &&
-				audio_format <= 8) /* From AC3 to ATRAC */
+		} else if(audio_format >= 2 && audio_format <= 8) /* From AC3 to ATRAC */
 			len += sprintf(buf + len, "%dkbps", bitrate * 8);
 		else /* From One-bit-audio to WMA Pro*/
 			len += sprintf(buf + len, "%d", bitrate);
@@ -1271,7 +1530,7 @@ static ssize_t attr_show_parsed_edid(struct device *dev,
 		len += sprintf(buf + len, "\n");
 	}
 
-	if (len == 0)
+	if(len == 0)
 		len += sprintf(buf + len, "\n");
 
 	return len;
@@ -1286,7 +1545,9 @@ void vpp_switch_state_init(void)
 	switch_set_state(&vpp_sdev, hdmi_get_plugin() ? 1 : 0);
 	switch_dev_register(&vpp_sdev_hdcp);
 	switch_set_state(&vpp_sdev_hdcp, 0);
+#if 0
 	switch_dev_register(&vpp_sdev_audio);
+#endif
 	device_create_file(vpp_sdev.dev, &dev_attr_edid_parsed);
 }
 
@@ -1376,10 +1637,12 @@ void vpp_netlink_notify_plug(int vo_num, int plugin)
 	if (plugin == 0) {
 		int mask = 0;
 
-		if (vo_num == VPP_VOUT_ALL)
+		if (g_vpp.virtual_display)
+			mask = ~1;
+		else if (vo_num == VPP_VOUT_ALL)
 			mask = ~0;
 		else {
-			struct vout_info_t *vo_info;
+			vout_info_t *vo_info;
 			vo_info = vout_get_info_entry(vo_num);
 			if (vo_info)
 				mask = 0x1 << (vo_info->num);
@@ -1391,8 +1654,8 @@ void vpp_netlink_notify_plug(int vo_num, int plugin)
 		return;
 
 	/* if hdmi unplug, clear edid_parsed */
-	if (hdmi_get_plugin() == 0)
-		memset(&edid_parsed, 0, sizeof(struct edid_parsed_t));
+	if(hdmi_get_plugin() == 0)
+		memset(&edid_parsed, 0, sizeof(edid_parsed_t));
 
 	vpp_netlink_notify(USER_PID, DEVICE_PLUG_IN, plugin);
 	vpp_netlink_notify(WP_PID, DEVICE_PLUG_IN, plugin);
@@ -1407,7 +1670,5 @@ void vpp_netlink_notify_cp(int enable)
 {
 	switch_set_state(&vpp_sdev_hdcp, enable);
 }
-EXPORT_SYMBOL(vpp_netlink_notify_cp);
-
 #endif /* CONFIG_VPP_NOTIFY */
 #endif /* __KERNEL__ */

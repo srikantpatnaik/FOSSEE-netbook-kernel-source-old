@@ -50,6 +50,158 @@ static struct mali_device *malidev;
 #define MALI_PUT_UMP_SECURE_ID   _IOWR('m', 321, unsigned int)
 #endif /* HAVE_MALI */
 
+#define USE_SID_ALIAS
+/*
+#define DEBUG_SID_ALIAS
+*/
+
+#ifdef USE_SID_ALIAS
+#define SID_IDX_MAX 16
+#define SID_GET_INDEX_FROM_ALIAS _IOWR('s', 100, unsigned int)
+#define SID_SET_ALIAS            _IOWR('s', 101, unsigned int)
+#define SID_GET_ALIAS            _IOWR('s', 102, unsigned int)
+#define SID_GET_AND_RESET_ALIAS  _IOWR('s', 103, unsigned int)
+#define SID_DUMP                 _IOWR('s', 104, unsigned int)
+
+struct sid_alias {
+	int sid;
+	int alias;
+};
+
+static struct sid_alias sid_alias_buf[SID_IDX_MAX];
+static spinlock_t sid_lock;
+
+int sid_get_index_from_empty(int *index)
+{
+	int i;
+
+	for (i = 0; i < SID_IDX_MAX; i++) {
+		if (!sid_alias_buf[i].sid && !sid_alias_buf[i].alias) {
+			*index = i;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int sid_get_index_from_alias(int alias, int *index)
+{
+	int i;
+
+	for (i = 0; i < SID_IDX_MAX; i++) {
+		if (sid_alias_buf[i].alias == alias) {
+			*index = i;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int sid_clear_alias(int sid)
+{
+	int idx;
+
+	for (idx = 0; idx < SID_IDX_MAX; idx++) {
+		if (sid == sid_alias_buf[idx].sid ||
+		    sid == sid_alias_buf[idx].alias) {
+			sid_alias_buf[idx].sid = 0;
+			sid_alias_buf[idx].alias = 0;
+		}
+	}
+
+	return 0;
+}
+
+int sid_set_alias(int sid, int alias)
+{
+	int idx;
+
+	if (alias <= 0)
+		return sid_clear_alias(sid);
+
+	sid_clear_alias(alias);
+
+	if (sid_get_index_from_alias(sid, &idx) == 0) {
+		sid_alias_buf[idx].alias = alias;
+		if (alias <= 0)
+			sid_alias_buf[idx].sid = 0;
+		return 0;
+	}
+
+	sid_clear_alias(sid);
+
+	if (sid_get_index_from_empty(&idx) == 0) {
+		sid_alias_buf[idx].sid = sid;
+		sid_alias_buf[idx].alias = alias;
+		return 0;
+	}
+
+	return -1;
+}
+
+int sid_get_alias(int sid, int *alias)
+{
+	int i;
+	int val = -1;
+
+	for (i = 0; i < SID_IDX_MAX; i++) {
+		if (sid_alias_buf[i].sid == sid) {
+			if (sid_alias_buf[i].alias > 0) {
+				val = sid_alias_buf[i].alias;
+				if (sid != val)
+					break;
+			} else {
+				/* remove invalid alias */
+				sid_alias_buf[i].sid = 0;
+				sid_alias_buf[i].alias = 0;
+			}
+		}
+	}
+
+	if (val > 0) {
+		*alias = val;
+		return 0;
+	} else
+		return -1;
+}
+
+int sid_get_and_reset_alias(int sid, int *alias)
+{
+	int i;
+	int val = -1;
+
+	for (i = 0; i < SID_IDX_MAX; i++) {
+		if (sid_alias_buf[i].sid == sid) {
+			if (sid_alias_buf[i].alias > 0) {
+				val = sid_alias_buf[i].alias;
+				sid_alias_buf[i].sid = val;
+				if (sid != val)
+					break;
+			} else {
+				/* remove invalid alias */
+				sid_alias_buf[i].sid = 0;
+				sid_alias_buf[i].alias = 0;
+			}
+		}
+	}
+
+	if (val > 0) {
+		*alias = val;
+		return 0;
+	} else
+		return -1;
+}
+
+void sid_dump(void)
+{
+	int i;
+
+	for (i = 0; i < SID_IDX_MAX; i++)
+		printk(KERN_ERR "sid_alias_buf[%d] = { %d, %d }\n",
+			i, sid_alias_buf[i].sid, sid_alias_buf[i].alias);
+}
+#endif
+
 #ifndef FBIO_WAITFORVSYNC
 #define FBIO_WAITFORVSYNC _IOW('F', 0x20, u_int32_t)
 #endif
@@ -318,6 +470,64 @@ static int gefb_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	}
 #endif /* GEIO_MAGIC */
+#ifdef USE_SID_ALIAS
+	case SID_GET_INDEX_FROM_ALIAS: {
+		unsigned int args[2];
+		unsigned int index = -1;
+		copy_from_user(args, (void *)arg, sizeof(unsigned int) * 2);
+		spin_lock(&sid_lock);
+		retval = sid_get_index_from_alias(args[0], &index);
+		spin_unlock(&sid_lock);
+		put_user(index, (unsigned int __user *)args[1]);
+		break;
+	}
+	case SID_SET_ALIAS: {
+		unsigned int args[2];
+		copy_from_user(args, (void *)arg, sizeof(unsigned int) * 2);
+		spin_lock(&sid_lock);
+		retval = sid_set_alias(args[0], args[1]);
+#ifdef DEBUG_SID_ALIAS
+		printk(KERN_DEBUG "sid_set_alias %d, %d, ret = %d\n",
+		       args[0], args[1], retval);
+		sid_dump();
+#endif
+		spin_unlock(&sid_lock);
+		break;
+	}
+	case SID_GET_ALIAS: {
+		unsigned int args[2];
+		unsigned int alias = -1;
+		copy_from_user(args, (void *)arg, sizeof(unsigned int) * 2);
+		spin_lock(&sid_lock);
+		retval = sid_get_alias(args[0], &alias);
+		spin_unlock(&sid_lock);
+		put_user(alias, (unsigned int __user *)args[1]);
+		break;
+	}
+	case SID_GET_AND_RESET_ALIAS: {
+		unsigned int args[2];
+		unsigned int alias = -1;
+		copy_from_user(args, (void *)arg, sizeof(unsigned int) * 2);
+		spin_lock(&sid_lock);
+		retval = sid_get_and_reset_alias(args[0], &alias);
+#ifdef DEBUG_SID_ALIAS
+		printk(KERN_DEBUG "sid_get_and_reset_alias %d, %d, ret = %d\n",
+		       args[0], alias, retval);
+		sid_dump();
+#endif
+		spin_unlock(&sid_lock);
+		put_user(alias, (unsigned int __user *)args[1]);
+		break;
+	}
+	case SID_DUMP: {
+		spin_lock(&sid_lock);
+		copy_to_user((void *)arg, sid_alias_buf,
+			sizeof(struct sid_alias) * SID_IDX_MAX);
+		retval = 0;
+		spin_unlock(&sid_lock);
+		break;
+	}
+#endif
 	default:
 		break;
 	}
@@ -462,7 +672,7 @@ static int __init gefb_setup(char *options)
 	/* The syntax is:
 	 *     video=gefb:[<param>][,<param>=<val>] ...
 	 * e.g.,
-	 *     video=gefb:vtotal=12,
+	 *     video=gefb:vtotal=12,sync2
 	 */
 
 	while ((this_opt = strsep(&options, ",")) != NULL) {
@@ -476,6 +686,8 @@ static int __init gefb_setup(char *options)
 			;
 		else if (get_opt_bool(this_opt, "vsync", &vsync))
 			;
+		else if (get_opt_bool(this_opt, "sync2", &sync2))
+			;
 	}
 
 	return 0;
@@ -488,7 +700,7 @@ static struct mali_device *add_mali_device(unsigned int *smem_start_ptr,
 	unsigned int len;
 	struct mali_device *dev = create_mali_device();
 	if (dev) {
-		dev->set_memory_base(*smem_start_ptr);
+		dev->get_memory_base(smem_start_ptr);
 		dev->get_memory_size(&len);
 		*smem_start_ptr += len;
 		*smem_len_ptr -= len;
@@ -532,12 +744,11 @@ static int __devinit gefb_probe(struct platform_device *dev)
 {
 	struct fb_info *info;
 	int cmap_len, retval;
-/*	char mode_option[] = "1024x768@60"; */
+	char mode_option[] = "1024x768@60";
 	unsigned int smem_start;
 	unsigned int smem_len;
 	unsigned int len;
 	unsigned int min_smem_len;
-	unsigned int id;
 
 	/* Allocate fb_info and par.*/
 	info = framebuffer_alloc(sizeof(unsigned int) * 16, &dev->dev);
@@ -553,13 +764,6 @@ static int __devinit gefb_probe(struct platform_device *dev)
 
 	smem_start = (num_physpages << PAGE_SHIFT);
 	smem_len = phy_mem_end() - smem_start;
-
-	/* If newer than WM3498, reserve 1MiB for U-Boot env */
-	id = (*(unsigned int *)SYSTEM_CFG_CTRL_BASE_ADDR) >> 16;
-	if (id > 0x3498) {
-		smem_start += 0x100000;
-		smem_len   -= 0x100000;
-	}
 
 #ifdef HAVE_MALI
 	malidev = add_mali_device(&smem_start, &smem_len);
@@ -617,7 +821,6 @@ static int __devinit gefb_probe(struct platform_device *dev)
 	info->par = NULL;
 	info->flags = FBINFO_DEFAULT;	/* flag for fbcon */
 
-#if 0
 	/*
 	 * This should give a reasonable default video mode.
 	 */
@@ -626,7 +829,7 @@ static int __devinit gefb_probe(struct platform_device *dev)
 
 	if (!retval || retval == 4)
 		return -EINVAL;
-#endif
+
 	/*
 	 *  This has to been done !!!
 	 */
@@ -663,6 +866,11 @@ static int __devinit gefb_probe(struct platform_device *dev)
 	}
 	info->dev->power.async_suspend = 1; /* Add by Charles */
 	dev_set_drvdata(&dev->dev, info);
+
+#ifdef USE_SID_ALIAS
+	spin_lock_init(&sid_lock);
+	memset(sid_alias_buf, 0, sizeof(struct sid_alias) * SID_IDX_MAX);
+#endif
 
 	return 0;
 }

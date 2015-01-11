@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/com-vpp.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,17 +25,17 @@
 #define COM_VPP_H
 
 #ifdef __KERNEL__
-#include <linux/types.h>
-#include <linux/fb.h>
-#include <asm/io.h>
-#include <mach/common_def.h>
-#include <mach/com-video.h>
+    #include <linux/types.h>
+    #include <linux/fb.h>
+    #include <asm/io.h>
+    #include <mach/common_def.h>
+    #include <mach/com-video.h>
 #else
-#include "com-video.h"
-#ifdef CFG_LOADER 
-#include "com-fb.h"
+	#include "com-video.h"
+    #include "com-fb.h"
 #endif
-#endif
+
+#define VPP_OLD_API
 
 #define VPP_NEW_FBUF_MANAGER
 
@@ -106,12 +106,12 @@
 #define BIT30	0x40000000
 #define BIT31	0x80000000
 
-#define VPP_YUV_BLACK		0x008080	/* Y, Cr, Cb */
-#define VPP_YUV_WHITE		0xff8080
-#define VPP_YUV_RED		0x51f05a
-#define VPP_YUV_GREEN		0x902235
-#define VPP_YUV_BLUE		0x286df0
-#define VPP_RGB32_BLACK		0x00000000
+#define VPP_YUV_BLACK		0x00, 0x80, 0x80	/* Y, Cr, Cb */
+#define VPP_YUV_WHITE		0xff, 0x80, 0x80
+#define VPP_YUV_RED		0x51, 0xf0, 0x5a
+#define VPP_YUV_GREEN		0x90, 0x22, 0x35
+#define VPP_YUV_BLUE		0x28, 0x6d, 0xf0
+#define VPP_RGB32_BLACK		0x00, 0x00, 0x00, 0x00
 
 #define VPP_COL_RGB32_BLACK	0x000000
 #define VPP_COL_RGB32_WHITE	0xFFFFFF
@@ -129,16 +129,15 @@
 
 #define WMT_FB_COLFMT(a)	(a & 0xFF)
 
-enum vpp_fbuf_s {
+typedef enum {
 	VPP_FBUF_GOVR_1,
 	VPP_FBUF_GOVR_2,
 	VPP_FBUF_SCLR_1,
 	VPP_FBUF_SCLR_2,
 	VPP_FBUF_MAX
-};
-#define vpp_fbuf_t enum vpp_fbuf_s
+} vpp_fbuf_t;
 
-enum vpp_flag_s {
+typedef enum {
 	VPP_FLAG_NULL = 0,
 	VPP_FLAG_ENABLE = 1,
 	VPP_FLAG_DISABLE = 0,
@@ -150,10 +149,9 @@ enum vpp_flag_s {
 	VPP_FLAG_ERROR = 0,
 	VPP_FLAG_RD = 1,
 	VPP_FLAG_WR = 0,
-};
-#define vpp_flag_t enum vpp_flag_s
+} vpp_flag_t;
 
-enum vpp_mod_s {
+typedef enum {
 	VPP_MOD_GOVRH2,
 	VPP_MOD_GOVRH,
 	VPP_MOD_DISP,
@@ -168,12 +166,11 @@ enum vpp_mod_s {
 	VPP_MOD_LCDC,
 	VPP_MOD_CURSOR,
 	VPP_MOD_MAX
-};
-#define vpp_mod_t enum vpp_mod_s
+} vpp_mod_t;
 
-enum vpp_vout_s {
-	VPP_VOUT_NONE = 0,
-	VPP_VOUT_SDA = 1,
+typedef enum {
+	VPP_VOUT_SDA = 0,
+	VPP_VOUT_SDD = 1,
 	VPP_VOUT_LCD = 2,
 	VPP_VOUT_DVI = 3,
 	VPP_VOUT_HDMI = 4,
@@ -181,26 +178,50 @@ enum vpp_vout_s {
 	VPP_VOUT_LVDS = 6,
 	VPP_VOUT_VGA = 7,
 	VPP_VOUT_FBDEV = 8,
-	VPP_VOUT_VIRDISP = 9,
 	VPP_VOUT_MAX
-};
-#define vpp_vout_t enum vpp_vout_s
+} vpp_vout_t;
 
-enum vpp_display_format_s {
+typedef enum {
+	VPP_OUTDEV_TV_NORMAL,	/* NTSC 720x480 or PAL 720x576 */
+	VPP_OUTDEV_VGA,
+	VPP_OUTDEV_DVO,
+	VPP_OUTDEV_MAX
+} vpp_output_device_t;
+
+typedef enum {
+	VPP_ALPHA_VIDEO,
+	VPP_ALPHA_GE,
+	VPP_ALPHA_MAX,
+} vpp_alpha_t;
+
+typedef enum {
 	VPP_DISP_FMT_FRAME,	/* Progressive */
 	VPP_DISP_FMT_FIELD,	/* Interlace */
 	VPP_DISP_FMT_MAX,
-};
-#define vpp_display_format_t enum vpp_display_format_s
+} vpp_display_format_t;
 
-enum vpp_media_format_s {
+typedef enum {
 	VPP_MEDIA_FMT_MPEG,
 	VPP_MEDIA_FMT_H264,
 	VPP_MEDIA_FMT_MAX,
-};
-#define vpp_media_format_t enum vpp_media_format_s
+} vpp_media_format_t;
 
-enum vpp_csc_s { /* don't change this order */
+typedef enum {
+	VPP_PATH_NULL = 0,
+	VPP_PATH_ALL = 0xffffffff,
+	/* in */
+	VPP_PATH_GOVM_IN_VPU = BIT0,
+	VPP_PATH_GOVM_IN_SCL = BIT1,
+	VPP_PATH_GOVM_IN_GE = BIT2,
+	VPP_PATH_GOVM_IN_PIP = BIT3,
+	VPP_PATH_GOVM_IN_SPU = BIT4,
+	VPP_PATH_GOVM_IN_CUR = BIT5,
+	/* out */
+	VPP_PATH_SCL_OUT_REALTIME = BIT10,
+	VPP_PATH_SCL_OUT_RECURSIVE = BIT11,
+} vpp_path_t;
+
+typedef enum {			/* don't change this order */
 	VPP_CSC_YUV2RGB2_MIN,
 	VPP_CSC_YUV2RGB_SDTV_0_255 = VPP_CSC_YUV2RGB2_MIN,
 	VPP_CSC_YUV2RGB_SDTV_16_235,
@@ -217,27 +238,75 @@ enum vpp_csc_s { /* don't change this order */
 	VPP_CSC_RGB2YUV_JFIF_0_255,
 	VPP_CSC_RGB2YUV_SMPTE170M,
 	VPP_CSC_RGB2YUV_SMPTE240M,
-	VPP_CSC_RGB2YUV_JFIF_VT1625,
 	VPP_CSC_MAX,
 	VPP_CSC_BYPASS
-};
-#define vpp_csc_t enum vpp_csc_s
+} vpp_csc_t;
 
-enum vpp_reglevel_s {
+typedef enum {
 	VPP_REG_LEVEL_1,
 	VPP_REG_LEVEL_2,
 	VPP_REG_LEVEL_MAX,
-};
-#define vpp_reglevel_t enum vpp_reglevel_s
+} vpp_reglevel_t;
 
-enum vpp_datawidht_s {
+typedef enum {
+	VPP_BPP_1,
+	VPP_BPP_2,
+	VPP_BPP_4,
+	VPP_BPP_8,
+	VPP_BPP_12,
+	VPP_BPP_16_565,
+	VPP_BPP_16_555 = VPP_BPP_16_565,
+	VPP_BPP_18,
+	VPP_BPP_24,
+	VPP_BPP_MAX,
+} vpp_bpp_t;
+
+typedef enum {
+	VPP_GAMMA_DISABLE,
+	VPP_GAMMA_22,
+	VPP_GAMMA_24,
+	VPP_GAMMA_28,
+	VPP_GAMMA_MAX,
+} vpp_gamma_t;
+
+typedef enum {
 	VPP_DATAWIDHT_12,
 	VPP_DATAWIDHT_24,
 	VPP_DATAWIDHT_MAX,
-};
-#define vpp_datawidht_t enum vpp_datawidht_s
+} vpp_datawidht_t;
 
-enum vpp_tvsys_s {
+typedef enum {
+	VPP_ADDR_NORMAL,
+	VPP_ADDR_BURST,
+	VPP_ADDR_MAX,
+} vpp_addr_mode_t;
+
+typedef enum {
+	VPP_DEI_WEAVE,
+	VPP_DEI_BOB,
+	VPP_DEI_ADAPTIVE_ONE,
+	VPP_DEI_ADAPTIVE_THREE,
+	VPP_DEI_FIELD,
+	VPP_DEI_MOTION_VECTOR,
+	VPP_DEI_MAX,
+	VPP_DEI_DYNAMIC,
+} vpp_deinterlace_t;
+
+typedef enum {
+	VPP_DIR_THERE,
+	VPP_DIR_TWO,
+	VPP_DIR_FOUR,
+	VPP_DIR_FIVE,
+	VPP_DIR_MAX,
+} vpp_direction_t;
+
+typedef enum {
+	VPP_FIELD_TOP,
+	VPP_FIELD_BOTTOM,
+	VPP_FIELD_MAX,
+} vpp_field_t;
+
+typedef enum {
 	VPP_TVSYS_NTSC,
 	VPP_TVSYS_NTSCJ,
 	VPP_TVSYS_NTSC443,
@@ -250,10 +319,9 @@ enum vpp_tvsys_s {
 	VPP_TVSYS_1080I,
 	VPP_TVSYS_1080P,
 	VPP_TVSYS_MAX
-};
-#define vpp_tvsys_t enum vpp_tvsys_s
+} vpp_tvsys_t;
 
-enum vpp_tvconn_s {
+typedef enum {
 	VPP_TVCONN_YCBCR,
 	VPP_TVCONN_SCART,
 	VPP_TVCONN_YPBPR,
@@ -261,14 +329,28 @@ enum vpp_tvconn_s {
 	VPP_TVCONN_SVIDEO,
 	VPP_TVCONN_CVBS,
 	VPP_TVCONN_MAX
-};
-#define vpp_tvconn_t enum vpp_tvconn_s
+} vpp_tvconn_t;
 
 #define VPP_OPT_INTERLACE		0x01
 #define VPP_DVO_SYNC_POLAR_HI		0x08
 #define VPP_DVO_VSYNC_POLAR_HI		0x10
 
-struct vpp_clock_s {
+typedef struct {
+	unsigned int pixel_clock;
+	unsigned int option;
+
+	unsigned int hsync;
+	unsigned int hbp;
+	unsigned int hpixel;
+	unsigned int hfp;
+
+	unsigned int vsync;
+	unsigned int vbp;
+	unsigned int vpixel;
+	unsigned int vfp;
+} vpp_timing_t;
+
+typedef struct {
 	int read_cycle;
 
 	unsigned int total_pixel_of_line;
@@ -283,24 +365,27 @@ struct vpp_clock_s {
 	unsigned int vsync;
 	unsigned int line_number_between_VBIS_VBIE;
 	unsigned int line_number_between_PVBI_VBIS;
-};
-#define vpp_clock_t struct vpp_clock_s
+} vpp_clock_t;
 
-struct vpp_scale_s {
+typedef struct _vpp_image_t {
+	U32 y_addr;
+	U32 c_addr;
+	vdo_color_fmt src_col_fmt;
+} vpp_image_t;
+
+typedef struct {
 	vdo_framebuf_t src_fb;
 	vdo_framebuf_t dst_fb;
-};
-#define vpp_scale_t struct vpp_scale_s
+} vpp_scale_t;
 
-struct vpp_scale_overlap_s {
+typedef struct {
 	int mode;
 	vdo_framebuf_t src_fb;
 	vdo_framebuf_t src2_fb;
 	vdo_framebuf_t dst_fb;
-};
-#define vpp_scale_overlap_t struct vpp_scale_overlap_s
+} vpp_scale_overlap_t;
 
-struct vpp_overlap_s {
+typedef struct {
 	unsigned int alpha_src_type:2; /* 0-mif1,1-mif2,2-fix */
 	unsigned int alpha_src:8;
 	unsigned int alpha_dst_type:2; /* 0-mif1,1-mif2,2-fix */
@@ -313,8 +398,7 @@ struct vpp_overlap_s {
 				5-(pix2,alpha),6-(pix1,pix2),7-(pix2,pix1) */
 	unsigned int reserved:4;
 	unsigned int color_key; /* ARGB */
-};
-#define vpp_overlap_t struct vpp_overlap_s
+} vpp_overlap_t;
 
 #define VPP_VOUT_STS_REGISTER	0x01
 #define VPP_VOUT_STS_ACTIVE	0x02
@@ -323,24 +407,67 @@ struct vpp_overlap_s {
 #define VPP_VOUT_STS_BLANK	0x10
 #define VPP_VOUT_STS_POWERDN	0x20
 #define VPP_VOUT_STS_CONTENT_PROTECT 0x40
-#define VPP_VOUT_STS_FB		0xF00
-#define VPP_VOUT_ARG_NUM 5
-struct vpp_vout_info_s {
-	enum vpp_vout_s mode[VPP_VOUT_ARG_NUM]; 
-	unsigned int status[VPP_VOUT_ARG_NUM];
-};
-#define vpp_vout_info_t struct vpp_vout_info_s
+typedef struct {
+	int num;
+	unsigned int status;
+	char name[10];
+} vpp_vout_info_t;
 
-struct vpp_vout_parm_s {
+typedef struct {
 	int num;
 	int arg;
-};
-#define vpp_vout_parm_t struct vpp_vout_parm_s
+} vpp_vout_parm_t;
 
+/* =============================================================================
+	vout option
+   =============================================================================
+	vout		id	option1		option2 - b8(1:blank)
+	SDA		0	tvsys		tvconn
+	SDD		1	tvsys		tvconn
+	LCD		2	lcd id		bit per pixel(bit0-7),
+						b8(1:blank),b9-11(igs mode),
+						bit12-13(swap)
+	DVI		3	colfmt		b0(0:12bit,1:24bit),
+						b1(1:interlace),b8(1:blank),
+						b9-11(igs mode),bit12-13(swap)
+	HDMI		4	colfmt		b0(0:12bit,1:24bit),
+						b1(1:interlace),b8(1:blank)
+	DVO2HDMI	5	colfmt		b0(0:12bit,1:24bit),
+						b1(1:interlace),b8(1:blank)
+	LVDS		6	lcd id		bit per pixel(bit0-7),
+						b8(1:blank),b9-11(igs mode),
+						bit12-13(swap)
+	VGA		7
+	FBDEV		8
+  =============================================================================
+	tvsys : 0-NTSC,3-PAL,8-720p,9-1080i,10-1080p
+	tvconn: 0-YCbCr,1-SCART,2-YPbPr,3-VGA,4-SVideo,5-CVBS
+	colfmt: 0-420,1-422H,3-444,6-ARGB,8-RGB24,9-RGB18,10-RGB16
+	lcdid :	0-OEM(VGA 1024x768),1-Chilin(7"800x480),
+		2-Innolux(7"800x480),3-AUO(800x600),
+		4-Eking(800x600),5-Hannstar(10"1024x600)
+  ========================================================================== */
+#define VOUT_OPT_DWIDTH24	BIT(0)
+#define VOUT_OPT_INTERLACE	BIT(1)
 #define VOUT_OPT_BLANK		BIT(8)
 
+typedef struct {
+	int num;
+	unsigned int option[3];
+} vpp_vout_option_t;
+
+typedef struct {
+	int num;
+	vpp_timing_t tmr;
+} vpp_vout_tmr_t;
+
+typedef struct {
+	unsigned int yaddr;
+	unsigned int caddr;
+} vpp_fbaddr_t;
+
 #define VPP_CAP_DUAL_DISPLAY	BIT(0)
-struct vpp_cap_s {
+typedef struct {
 	unsigned int chip_id;
 	unsigned int version;
 	unsigned int resx_max;
@@ -348,63 +475,120 @@ struct vpp_cap_s {
 	unsigned int pixel_clk;
 	unsigned int module;
 	unsigned int option;
-};
-#define vpp_cap_t struct vpp_cap_s
+} vpp_cap_t;
 
-struct vpp_i2c_s {
+typedef struct {
+	vpp_flag_t enable;
+	vpp_alpha_t mode;
+	int A;
+	int B;
+} vpp_alpha_parm_t;
+
+typedef struct {
+	vpp_path_t src_path;
+	vpp_flag_t enable;
+} vpp_src_path_t;
+
+typedef struct {
+	vpp_flag_t enable;
+	vpp_flag_t sync_polar;
+	vpp_flag_t vsync_polar;
+	vdo_color_fmt color_fmt;
+	vpp_datawidht_t data_w;
+	int clk_inv;
+	int clk_delay;
+} vdo_dvo_parm_t;
+
+typedef struct {
 	unsigned int addr;
 	unsigned int index;
 	unsigned int val;
-};
-#define vpp_i2c_t struct vpp_i2c_s
+} vpp_i2c_t;
 
-struct vpp_mod_fbinfo_s {
+#define VPP_FLAG_DISPFB_ADDR	BIT(0)
+#define VPP_FLAG_DISPFB_INFO	BIT(1)
+#define VPP_FLAG_DISPFB_VIEW	BIT(2)
+#define VPP_FLAG_DISPFB_PIP	BIT(3)
+#define VPP_FLAG_DISPFB_MB_ONE	BIT(4)
+#define VPP_FLAG_DISPFB_MB_NO	BIT(6)
+typedef struct {
+	unsigned int yaddr;
+	unsigned int caddr;
+	vdo_framebuf_t info;
+	vdo_view_t view;
+
+	unsigned int flag;
+} vpp_dispfb_t;
+
+typedef struct {
+	vpp_mod_t mod;
+	int read;
+	unsigned int arg1;
+	unsigned int arg2;
+} vpp_mod_arg_t;
+
+typedef struct {
+	vpp_mod_t mod;
+	int read;
+	vpp_timing_t tmr;
+} vpp_mod_timing_t;
+
+typedef struct {
 	vpp_mod_t mod;
 	int read;
 	vdo_framebuf_t fb;
-};
-#define vpp_mod_fbinfo_t struct vpp_mod_fbinfo_s
+} vpp_mod_fbinfo_t;
 
-struct vpp_vmode_parm_s {
+typedef struct {
+	vpp_mod_t mod;
+	int read;
+	vdo_view_t view;
+} vpp_mod_view_t;
+
+typedef struct {
 	unsigned int resx;
 	unsigned int resy;
 	unsigned int fps;
 	unsigned int option;
-};
-#define vpp_vmode_parm_t struct vpp_vmode_parm_s
+} vpp_vmode_parm_t;
 
 #define VPP_VOUT_VMODE_NUM	20
-struct vpp_vout_vmode_s {
+typedef struct {
 	vpp_vout_t mode;
 	int num;
 	vpp_vmode_parm_t parm[VPP_VOUT_VMODE_NUM];
-};
-#define vpp_vout_vmode_t struct vpp_vout_vmode_s
+} vpp_vout_vmode_t;
 
-struct vpp_vout_edid_s {
+typedef struct {
+	int queue_cnt;
+	int cur_cnt;
+	int isr_cnt;
+	int disp_cnt;
+	int skip_cnt;
+	int full_cnt;
+	int reserved[2];
+} vpp_dispfb_info_t;
+
+typedef struct {
 	vpp_vout_t mode;
 	int size;
 	char *buf;
-};
-#define vpp_vout_edid_t struct vpp_vout_edid_s
+} vpp_vout_edid_t;
 
-struct vpp_vout_cp_info_s {
+typedef struct {
 	int num;
 	unsigned int bksv[2];
-};
-#define vpp_vout_cp_info_t struct vpp_vout_cp_info_s
+} vpp_vout_cp_info_t;
 
 #define VPP_VOUT_CP_NUM		336
-struct vpp_vout_cp_key_s {
+typedef struct {
 	char key[VPP_VOUT_CP_NUM];
-};
-#define vpp_vout_cp_key_t struct vpp_vout_cp_key_s
+} vpp_vout_cp_key_t;
 
-struct vpp_mod_parm_t {
-	vpp_mod_t mod;
-	int read;
-	unsigned int parm;
-};
+typedef struct {
+	vpp_deinterlace_t mode;
+	int level;
+} vpp_deinterlace_parm_t;
 
 #define VPPIO_MAGIC		'f'
 
@@ -414,22 +598,52 @@ struct vpp_mod_parm_t {
 #define VPPIO_VPPSET_INFO _IOW(VPPIO_MAGIC, VPPIO_VPP_BASE + 0, vpp_cap_t)
 #define VPPIO_I2CSET_BYTE _IOW(VPPIO_MAGIC, VPPIO_VPP_BASE + 1, vpp_i2c_t)
 #define VPPIO_I2CGET_BYTE _IOR(VPPIO_MAGIC, VPPIO_VPP_BASE + 1, vpp_i2c_t)
-#define VPPIO_MODSET_CSC \
-	_IOW(VPPIO_MAGIC, VPPIO_VPP_BASE + 2, struct vpp_mod_parm_t)
+#define VPPIO_MODULE_FRAMERATE \
+	_IOWR(VPPIO_MAGIC, VPPIO_VPP_BASE + 2, vpp_mod_arg_t)
+#define VPPIO_MODULE_ENABLE \
+	_IOWR(VPPIO_MAGIC, VPPIO_VPP_BASE + 3, vpp_mod_arg_t)
+#define VPPIO_MODULE_TIMING \
+	_IOWR(VPPIO_MAGIC, VPPIO_VPP_BASE + 4, vpp_mod_timing_t)
+#define VPPIO_MODULE_FBADDR \
+	_IOWR(VPPIO_MAGIC, VPPIO_VPP_BASE + 5, vpp_mod_arg_t)
 #define VPPIO_MODULE_FBINFO \
 	_IOWR(VPPIO_MAGIC, VPPIO_VPP_BASE + 6, vpp_mod_fbinfo_t)
+/* #define VPPIO_VPPSET_DIRECTPATH	_IO(VPPIO_MAGIC,VPPIO_VPP_BASE + 7) */
+#define VPPIO_VPPSET_FBDISP _IOW(VPPIO_MAGIC, VPPIO_VPP_BASE + 8, vpp_dispfb_t)
+#define VPPIO_VPPGET_FBDISP \
+	_IOW(VPPIO_MAGIC, VPPIO_VPP_BASE + 8, vpp_dispfb_info_t)
+#define VPPIO_WAIT_FRAME	_IO(VPPIO_MAGIC, VPPIO_VPP_BASE + 9)
+#define VPPIO_MODULE_VIEW \
+	_IOWR(VPPIO_MAGIC, VPPIO_VPP_BASE + 10, vpp_mod_view_t)
 #define VPPIO_STREAM_ENABLE	_IO(VPPIO_MAGIC, VPPIO_VPP_BASE + 12)
 #define VPPIO_STREAM_GETFB \
 	_IOR(VPPIO_MAGIC, VPPIO_VPP_BASE + 13, vdo_framebuf_t)
 #define VPPIO_STREAM_PUTFB \
 	_IOW(VPPIO_MAGIC, VPPIO_VPP_BASE + 13, vdo_framebuf_t)
+#define VPPIO_MODULE_CSC _IOWR(VPPIO_MAGIC, VPPIO_VPP_BASE + 14, vpp_mod_arg_t)
 #define VPPIO_MULTIVD_ENABLE _IO(VPPIO_MAGIC, VPPIO_VPP_BASE + 15)
 
 /* VOUT ioctl command */
 #define VPPIO_VOUT_BASE		0x10
 #define VPPIO_VOGET_INFO _IOR(VPPIO_MAGIC, VPPIO_VOUT_BASE + 0, vpp_vout_info_t)
-#define VPPIO_VOGET_HDMI_3D \
-	_IOR(VPPIO_MAGIC, VPPIO_VOUT_BASE + 1, struct vpp_vout_parm_s)
+#define VPPIO_VOSET_MODE \
+	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 1, vpp_vout_parm_t)
+#define VPPIO_VOSET_BLANK \
+	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 2, vpp_vout_parm_t)
+/* #define VPPIO_VOSET_DACSENSE \
+	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 3, vpp_vout_parm_t) */
+#define VPPIO_VOSET_BRIGHTNESS \
+	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 4, vpp_vout_parm_t)
+#define VPPIO_VOGET_BRIGHTNESS \
+	_IOR(VPPIO_MAGIC, VPPIO_VOUT_BASE + 4, vpp_vout_parm_t)
+#define VPPIO_VOSET_CONTRAST \
+	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 5, vpp_vout_parm_t)
+#define VPPIO_VOGET_CONTRAST \
+	_IOR(VPPIO_MAGIC, VPPIO_VOUT_BASE + 5, vpp_vout_parm_t)
+#define VPPIO_VOSET_OPTION \
+	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 6, vpp_vout_option_t)
+#define VPPIO_VOGET_OPTION \
+	_IOR(VPPIO_MAGIC, VPPIO_VOUT_BASE + 6, vpp_vout_option_t)
 #define VPPIO_VOUT_VMODE \
 	_IOWR(VPPIO_MAGIC, VPPIO_VOUT_BASE + 7, vpp_vout_vmode_t)
 #define VPPIO_VOGET_EDID _IOR(VPPIO_MAGIC, VPPIO_VOUT_BASE + 8, vpp_vout_edid_t)
@@ -438,11 +652,22 @@ struct vpp_mod_parm_t {
 #define VPPIO_VOSET_CP_KEY \
 	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 10, vpp_vout_cp_key_t)
 #define VPPIO_VOSET_AUDIO_PASSTHRU	_IO(VPPIO_MAGIC, VPPIO_VOUT_BASE + 11)
+/* #define VPPIO_VOSET_OVERSCAN_OFFSET \
+	_IOW(VPPIO_MAGIC, VPPIO_VOUT_BASE + 12, vpp_vout_overscan_offset_t) */
 #define VPPIO_VOSET_VIRTUAL_FBDEV	_IO(VPPIO_MAGIC, VPPIO_VOUT_BASE + 13)
+
+/* GOVR ioctl command */
+#define VPPIO_GOVR_BASE		0x20
+#define VPPIO_GOVRSET_DVO _IOW(VPPIO_MAGIC, VPPIO_GOVR_BASE + 0, vdo_dvo_parm_t)
+#define VPPIO_GOVRSET_CUR_COLKEY \
+	_IOW(VPPIO_MAGIC, VPPIO_GOVR_BASE + 1, vpp_mod_arg_t)
+#define VPPIO_GOVRSET_CUR_HOTSPOT \
+	_IOW(VPPIO_MAGIC, VPPIO_GOVR_BASE + 2, vpp_mod_arg_t)
 
 /* SCL ioctl command */
 #define VPPIO_SCL_BASE		0x60
 #define VPPIO_SCL_SCALE	_IOWR(VPPIO_MAGIC, VPPIO_SCL_BASE + 0, vpp_scale_t)
+#define VPPIO_SCL_DROP_LINE_ENABLE  _IO(VPPIO_MAGIC, VPPIO_SCL_BASE + 1)
 #define VPPIO_SCL_SCALE_ASYNC \
 	_IOWR(VPPIO_MAGIC, VPPIO_SCL_BASE + 2, vpp_scale_t)
 #define VPPIO_SCL_SCALE_FINISH	_IO(VPPIO_MAGIC, VPPIO_SCL_BASE + 3)

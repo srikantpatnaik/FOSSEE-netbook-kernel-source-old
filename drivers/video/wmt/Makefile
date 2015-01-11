@@ -11,8 +11,8 @@ obj-$(CONFIG_FB_WMT) += vout-wmt.o
 
 # wmt vpp
 obj-$(CONFIG_FB_WMT) += vout.o vpp.o govrh.o scl.o vppm.o lvds.o
-obj-$(CONFIG_WMT_HDMI) += hdmi.o
-obj-$(CONFIG_FB_WMT) += vpp-osif.o wmt-vpp.o wmt-sync.o
+obj-$(CONFIG_WMT_HDMI) += hdmi.o hdmi_cp.o
+obj-$(CONFIG_FB_WMT) += vpp-osif.o wmt-sync.o
 obj-$(CONFIG_WMT_CEC) += cec.o dev-cec.o
 
 obj-$(CONFIG_FB_WMT) += mali.o

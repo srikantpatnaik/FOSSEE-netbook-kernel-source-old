@@ -62,7 +62,7 @@
 #define MB_VERSION_MAJOR 1
 #define MB_VERSION_MINOR 0
 #define MB_VERSION_MICRO 0
-#define MB_VERSION_BUILD 6
+#define MB_VERSION_BUILD 3
 
 #define MB_DEBUG
 #define MB_INFO(fmt, args...)  \
@@ -312,136 +312,396 @@ static spinlock_t mb_search_lock;
 static spinlock_t mb_ioctl_lock;
 static spinlock_t mb_task_mm_lock;
 static spinlock_t mb_task_lock;
+static struct page *pg_user[12800]; /* 12800 pages = 50 MB */
 static char show_mb_buffer[MB_SHOW_BUFSIZE];
 static char show_mba_buffer[MBA_SHOW_BUFSIZE];
 
-static inline uint64_t checkSum(unsigned long phys, int size, int type)
+#define MMU_SEARCH_DONE 1
+typedef int (*mb_page_proc)(void *, dma_addr_t, int);
+
+static inline int mmu_search_pte(
+	pte_t *pte,
+	unsigned long boundary,
+	unsigned long *addr,
+	unsigned long *offset,
+	mb_page_proc proc,
+	void *priv)
 {
-	char *d = (type) ? __va(phys) : mb_phys_to_virt(phys);
-	int i, pageSize, len, offset;
-	uint64_t sum, cs = 0;
+	int ret = 0, index = 0;
 
-	len = size;
-	offset = (unsigned long)d % PAGE_SIZE;
-	while (len > 0) {
-		sum = 0;
-		pageSize = min((int)(PAGE_SIZE - offset), len);
-		for (i = 0; i < pageSize; i++)
-			sum += d[i];
-		MB_WDBG("[CS] addr %#lx ~ %#lx size %#x cs %#llx\n",
-			phys, phys + size, size, sum);
-		MB_WDBG("[CS:DATA] %02x %02x %02x %02x %02x %02x %02x %02x\n",
-			d[0] & 0xff, d[1] & 0xff, d[2] & 0xff, d[3] & 0xff,
-			d[4] & 0xff, d[5] & 0xff, d[6] & 0xff, d[7] & 0xff);
-		d += pageSize;
-		len -= pageSize;
-		cs += sum;
-	}
+	/* for each pte */
+	while (pte && (*addr < boundary)) {
+		unsigned long pfn = pte_pfn(*pte);
+		struct page *pg = pfn_to_page(pfn);
+		void *virt = page_address(pg);
+		dma_addr_t phys = virt_to_phys(virt);
 
-	return cs;
+		MB_WDBG("\t\t[PTE%3d] PTE[%p]=%x n %lx V %p P %x U %lx[%lx]\n",
+			index++, pte, pte_val(*pte), pfn,
+			virt, phys, *addr, *offset);
+		if (!pfn_valid(pfn)) {
+			MB_WARN("invalid pfn %ld of addr %lx\n", pfn, *addr);
+			return -1;
+		}
+		if (*offset < PAGE_SIZE) {
+			ret = proc(priv, phys, *offset);
+			if (ret)
+				break;
+			*offset = 0;
+		} else
+			*offset -= PAGE_SIZE;
+		*addr += PAGE_SIZE;
+		pte++;
+#ifdef MB_WORDY
+		msleep(30);
+#endif
+	};
+	return ret;
 }
 
-unsigned long user_to_phys(unsigned long user)
+static inline int mmu_search_pmd(
+	pmd_t *pmd,
+	unsigned long boundary,
+	unsigned long *addr,
+	unsigned long *offset,
+	mb_page_proc proc,
+	void *priv)
 {
-	unsigned long par, phys, offset;
-	offset = user % PAGE_SIZE;
+	int ret = 0, index = 0;
+	unsigned long end;
+	pte_t *pte;
 
-	asm volatile(
-		"mcr p15, 0, %[user], c7, c8, 0\n"
-		"isb\n"
-		"mrc p15, 0,  %[par], c7, c4, 0\n"
-		: [par] "=r" (par)
-		: [user] "r" (user));
-
-	phys = (par & PAGE_MASK) + offset;
-	MB_DBG("%s: user %lx par %lx phys %lx\n",
-		__func__, user, par, phys);
-
-	return (par & 0x1) ? 0 : phys;
+	/* for each pmd */
+	while (pmd && (*addr < boundary)) {
+		/* from start to PMD alignment */
+		end = (*addr + PMD_SIZE) & PMD_MASK;
+		end = min(end, boundary);
+		pte = pte_offset_map(pmd, *addr);
+		if (pte == NULL) {
+			MB_WARN("[%08lx] *pmd=%08llx unknown pte\n",
+				*addr, (long long)pmd_val(*pmd));
+			return -1;
+		}
+		MB_WDBG("\t[PMD%3d, %lx, %lx] *(%p)=%x addr %lx\n", index++,
+			end - PMD_SIZE, end, pmd, pmd_val(*pmd), *addr);
+		ret = mmu_search_pte(pte, end, addr, offset, proc, priv);
+		if (ret)
+			break;
+		pmd++;
+	};
+	return ret;
 }
-EXPORT_SYMBOL(user_to_phys);
 
-/* return address is guaranteeed only under page alignment */
-void *user_to_virt(unsigned long user)
+static inline int mmu_search_pgd(
+	pgd_t *pgd,
+	unsigned long boundary,
+	unsigned long *addr,
+	unsigned long *offset,
+	mb_page_proc proc,
+	void *priv)
 {
-	unsigned long phys;
+	int ret = 0, index = 0;
+	unsigned long end;
+	pmd_t *pmd;
+	pud_t *pud;
 
-	phys = user_to_phys(user);
-	if (!phys) {
-		MB_WARN("user 0x%lx to virt fail.\n", user);
-		return 0;
-	}
+	/* for each pgd */
+	while (pgd && (*addr < boundary)) {
+		/* from start to PGDIR alignment */
+		end = (*addr + PGDIR_SIZE) & PGDIR_MASK;
+		end = min(end, boundary);
+		MB_WDBG("[PGD%3d, %lx, %lx] *(%p)=%x addr %lx\n", index++,
+			end - PGDIR_SIZE, end, pgd, pgd_val(*pgd), *addr);
+		pud = pud_offset(pgd, *addr);
+		if (pud_none(*pud) || pud_bad(*pud)) {
+			MB_WARN("[%08lx] *pgd=%08llx %s pud\n",
+				*addr, (long long)pgd_val(*pgd),
+				pud_none(*pud) ? "(None)" : "(Bad)");
+			return -1;
+		}
+		pmd = pmd_offset(pud, *addr);
+		if (pmd == NULL) {
+			MB_WARN("[%08lx] *pgd=%08llx unknown pmd\n",
+				*addr, (long long)pgd_val(*pgd));
+			return -1;
+		}
+		ret = mmu_search_pmd(pmd, end, addr, offset, proc, priv);
+		if (ret)
+			break;
+		pgd++;
+	};
 
-	return __va(phys);
+	return ret;
 }
-EXPORT_SYMBOL(user_to_virt);
 
-struct prdt_info {
+struct prdt_search_info {
 	int index;
 	int items;
-	int offset;
-	int size;
-	struct prdt_struct *prdt;
-	struct prdt_struct *last;
+	unsigned int size;
+	struct prdt_struct *prev;
+	struct prdt_struct *next;
 };
 
-static int prdt_proc(struct prdt_info *info, unsigned long phys)
+static int __user_to_prdt_proc(void *priv, dma_addr_t phys, int offset)
 {
-	int len;
+	struct prdt_search_info *info = (struct prdt_search_info *)priv;
+	struct prdt_struct *prev = info->prev, *next = info->next;
+	int len = PAGE_SIZE - offset;
 
-	if (!info) {
-		MB_WARN("PRDT process fail. (NULL info)\n");
-		return -1;
-	}
-
-	/* PRDT has done or no PRDT space */
-	if (info->size <= 0 ||
-		(info->last && info->last->EDT))
-		return 0;
-
-	len = PAGE_SIZE - info->offset;
-	if (len > info->size) /* last page */
+	if (len > info->size)
 		len = info->size;
 
 	/* Check it could combind with previous one */
-	if (info->last &&
-		/* prd size boundary check, MAX 60K */
-		(info->last->size <= ((1 << 16) - (2 * PAGE_SIZE))) &&
-		/* page continuity check */
-		((info->last->addr + info->last->size) == phys))
-		info->last->size += len;
+	if (prev &&
+	    /* prd size boundary check, MAX 60K */
+	    (prev->size <= ((1 << 16) - (2 * PAGE_SIZE))) &&
+	    /* page continuity check */
+	    ((prev->addr + prev->size) == phys))
+		prev->size += len;
 	else { /* create new one */
-		if (!info->items) {
-			MB_WARN("PRD table full (ptr %p # %d left %d).\n",
-				info->last+1, info->index+1, info->size);
-			if (info->last)
-				info->last->EDT = 1;
-			return -1;
-		}
-		if (info->last == NULL)
-			info->last = info->prdt;
-		else
-			info->last++;
-		info->last->addr = phys + info->offset;
-		info->last->size = len;
+		info->prev = prev = next;
+		info->next = next + 1;
+		prev->addr = phys + offset;
+		prev->size = len;
 		info->index++;
 		info->items--;
-		info->offset = 0;
+		if (!info->items) {
+			MB_WARN("PRD table full (ptr %p # %d left %d).\n",
+				next, info->index, info->size);
+			prev->EDT = 1;
+			return -1;
+		}
 	}
 	info->size -= len;
-	info->last->reserve = 0;
-	info->last->EDT = (info->size) ? 0 : 1;
-	MB_WDBG("\t[PRD %3d] %p (0x%x ~ 0x%x, 0x%x, %x) phys 0x%lx offset 0x%x len 0x%x left %x\n",
-		info->index, info->last, info->last->addr, info->last->addr + info->last->size,
-		info->last->size, info->last->EDT, phys, info->offset, len, info->size);
+	prev->reserve = 0;
+	prev->EDT = (info->size) ? 0 : 1;
+	MB_WDBG("\t\t\t[PRD %3d] %p start %x(%x + %d) size %x edt %x left %x\n",
+		info->index, prev, prev->addr, phys, offset,
+		prev->size, prev->EDT, info->size);
+
+	if (prev->EDT)
+		return MMU_SEARCH_DONE;
 
 	return 0;
 }
 
-static inline void show_prdt(struct prdt_struct *next)
+static int __user_to_prdt(
+	unsigned long user,
+	unsigned int size,
+	struct prdt_struct *prdt,
+	unsigned int items)
+{
+	struct mm_struct *mm = current->mm;
+	struct vm_area_struct *vma;
+	unsigned long addr, end, offset;
+	struct prdt_search_info info = {0};
+	unsigned int idx;
+	pgd_t *pgd;
+	int ret;
+
+	if (!prdt || ((size / PAGE_SIZE) + 2) > items) {
+		MB_WARN("PRD table space not enough (ptr %p at least %lu).\n",
+			prdt, (size/PAGE_SIZE)+2);
+		return -EINVAL;
+	}
+
+	MB_DBG("Memory(%#lx,%d) PRDT(%p,%d)\n", user, size, prdt, items);
+	info.size = size;
+	info.next = prdt;
+	info.items = items;
+	addr = user;
+
+	down_read(&mm->mmap_sem);
+	while (info.size > 0) {
+		vma = find_vma(mm, addr);
+		if (vma == NULL) {
+			MB_WARN("user addr %lx not found in task %s\n",
+				addr, current->comm);
+			info.next->EDT = 1;
+			goto fault;
+		}
+
+		MB_WDBG("VMA found: mm %p start %lx end %lx flags %lx\n",
+			mm, vma->vm_start, vma->vm_end, vma->vm_flags);
+		end = PAGE_ALIGN(vma->vm_end);
+		offset = addr - vma->vm_start;
+		addr = vma->vm_start;
+		pgd = pgd_offset(mm, vma->vm_start);
+		ret = mmu_search_pgd(pgd, end, &addr, &offset,
+			__user_to_prdt_proc, &info);
+		if (ret == MMU_SEARCH_DONE)
+			break;
+		if (ret)
+			goto fault;
+	}
+
+	MB_WDBG("PRDT %p, from %lx size %d\n", prdt, user, size);
+	for (idx = 0;; idx++) {
+		MB_WDBG("PRDT[%d] adddr %x size %d EDT %d\n",
+			idx, prdt[idx].addr, prdt[idx].size, prdt[idx].EDT);
+		dmac_flush_range(__va(prdt[idx].addr),
+			__va(prdt[idx].addr + prdt[idx].size));
+		outer_flush_range(prdt[idx].addr,
+			prdt[idx].addr + prdt[idx].size);
+		if (prdt[idx].EDT)
+			break;
+	}
+	up_read(&mm->mmap_sem);
+	return 0;
+fault:
+	MB_WARN("USER TO PRDT unfinished, remain size %d\n", info.size);
+	up_read(&mm->mmap_sem);
+	return -EFAULT;
+}
+
+static int __user_to_prdt1(
+	unsigned long user,
+	unsigned int size,
+	struct prdt_struct *next,
+	unsigned int items)
+{
+	void *ptr_start, *ptr_end, *ptr, *virt = NULL;
+	int res, pg_size, pg_idx = 0, nr_pages = 0;
+	struct vm_area_struct *vma;
+
+	ptr_start = ptr = (void *)user;
+	ptr_end = ptr_start + size;
+	MB_DBG("Memory(%#lx,%d) PRDT(%p,%d)\n", user, size, next, items);
+
+	down_read(&current->mm->mmap_sem);
+	vma = find_vma(current->mm, user);
+	up_read(&current->mm->mmap_sem);
+	/* For kernel direct-mapped memory, take the easy way */
+	if (vma && (vma->vm_flags & VM_IO) && (vma->vm_pgoff)) {
+		unsigned long phys = 0;
+		/* kernel-allocated, mmaped-to-usermode addresses */
+		phys = (vma->vm_pgoff << PAGE_SHIFT) + (user - vma->vm_start);
+		virt = __va(phys);
+		MB_INFO("kernel-alloc, mmaped-to-user addr U %lx V %p P %lx",
+			user, virt, phys);
+		BUG_ON(1);
+		return -EFAULT;
+	}
+	MB_WDBG("VMA found: mm %p start %lx end %lx flags %lx\n",
+		current->mm, vma->vm_start, vma->vm_end, vma->vm_flags);
+
+	nr_pages = (size + (PAGE_SIZE - 1)) / PAGE_SIZE;
+	if (!next || ((size/PAGE_SIZE)+2) > items || nr_pages > 2560) {
+		MB_WARN("PRD table space full (ptr %p pages %d prdt %d/%lu).\n",
+			next, nr_pages, items, (size/PAGE_SIZE)+2);
+		return -EINVAL;
+	}
+
+	memset(pg_user, 0x0, sizeof(struct page *)*2560);
+	down_read(&current->mm->mmap_sem);
+	res = get_user_pages(current, current->mm,
+		(unsigned long)ptr, nr_pages, 1, 0, pg_user, NULL);
+	while (res > 0 && size > 0) {
+		pg_size = PAGE_SIZE - ((unsigned long)ptr & ~PAGE_MASK);
+		virt = page_address(pg_user[pg_idx]) +
+			((unsigned long)ptr & ~PAGE_MASK);
+		if (pg_size > size)
+			pg_size = size;
+		MB_DBG("Get %d-th user page s %d/%d u %p v %p p %lx\n",
+			pg_idx, pg_size, size, ptr, virt, __pa(virt));
+		if ((next->addr + next->size) != __pa(virt) ||
+		    (next->size + pg_size) >= 65536 || !pg_idx) {
+			if (pg_idx) {
+				next->EDT = 0;
+				next++;
+			}
+			memset(next, 0x0, sizeof(struct prdt_struct));
+			next->addr = __pa(virt);
+		}
+		next->size += pg_size;
+		next->EDT = 1;
+		size -= pg_size;
+		ptr += pg_size;
+		pg_idx++;
+	}
+	next->EDT = 1;
+	up_read(&current->mm->mmap_sem);
+	return size;
+}
+
+static int __user_to_prdt2(
+	unsigned long user,
+	unsigned int size,
+	struct prdt_struct *next,
+	unsigned int items)
+{
+	void *ptr_start, *ptr_end, *ptr, *virt = NULL;
+	int res, pg_size, pg_idx = 0, ret = 0;
+	struct vm_area_struct *vma;
+	struct page *pages = NULL;
+
+	ptr_start = ptr = (void *)user;
+	ptr_end = ptr_start + size;
+	MB_DBG("Memory(%#lx,%d) PRDT(%p,%d)\n", user, size, next, items);
+
+	down_read(&current->mm->mmap_sem);
+	vma = find_vma(current->mm, user);
+	up_read(&current->mm->mmap_sem);
+	/* For kernel direct-mapped memory, take the easy way */
+	if (vma && (vma->vm_flags & VM_IO) && (vma->vm_pgoff)) {
+		unsigned long phys = 0;
+		/* kernel-allocated, mmaped-to-usermode addresses */
+		phys = (vma->vm_pgoff << PAGE_SHIFT) + (user - vma->vm_start);
+		virt = __va(phys);
+		MB_INFO("kernel-alloc, user-mmaped addr U %lx V %p P %lx",
+			user, virt, phys);
+		BUG_ON(1);
+		return -EFAULT;
+	}
+
+	if (!next || ((size/PAGE_SIZE)+2) > items) {
+		MB_WARN("PRD table space full (ptr %p at least %lu)\n",
+			next, (size/PAGE_SIZE)+2);
+		return -EINVAL;
+	}
+
+	MB_WDBG("VMA found: mm %p start %lx end %lx flags %lx\n",
+		current->mm, vma->vm_start, vma->vm_end, vma->vm_flags);
+
+	while (size) {
+		down_read(&current->mm->mmap_sem);
+		res = get_user_pages(current, current->mm,
+			(unsigned long)ptr, 1, 1, 0, &pages, NULL);
+		up_read(&current->mm->mmap_sem);
+		pg_size = PAGE_SIZE - ((unsigned long)ptr & ~PAGE_MASK);
+		if (res != 1) {
+			MB_ERROR("Get %d-th user pages (a %p s %d/%d) fail\n",
+				pg_idx, ptr, pg_size, size);
+			next->EDT = 1;
+			ret = -EFAULT;
+			break;
+		}
+		virt = page_address(&pages[0]) +
+			((unsigned long)ptr & ~PAGE_MASK);
+		pg_size = (pg_size > size) ? size : pg_size;
+		MB_DBG("Get %d-th user page s %d/%d u %p v %p p %lx\n",
+			pg_idx, pg_size, size, ptr, virt, __pa(virt));
+		if ((next->addr + next->size) != __pa(virt) ||
+		    (next->size + pg_size) >= 65536 || !pg_idx) {
+			if (pg_idx) {
+				next->EDT = 0;
+				next++;
+			}
+			memset(next, 0x0, sizeof(struct prdt_struct));
+			next->addr = __pa(virt);
+		}
+		next->size += pg_size;
+		next->EDT = 1;
+		size -= pg_size;
+		ptr += pg_size;
+		pg_idx++;
+	}
+	return ret;
+}
+
+static void show_prdt(struct prdt_struct *next)
 {
 	int idx = 1;
-
 	while (!next->EDT) {
 		MB_INFO("PRDT %d-th item: addr %x size %d EDT %d\n",
 			idx, next->addr, next->size, next->EDT);
@@ -452,103 +712,20 @@ static inline void show_prdt(struct prdt_struct *next)
 		idx, next->addr, next->size, next->EDT);
 }
 
-int user_to_prdt(
-	unsigned long user,
-	unsigned int size,
-	struct prdt_struct *prdt,
-	unsigned int items)
-{
-	struct prdt_info info = {0};
-	unsigned long addr;
-	int idx;
-
-	if (!prdt || ((size / PAGE_SIZE) + 2) > items) {
-		MB_WARN("PRD table space not enough (ptr %p at least %lu but %d).\n",
-			prdt, (size/PAGE_SIZE)+2, items);
-		return -EINVAL;
-	}
-
-	MB_DBG("Memory(%#lx,%#x) PRDT(%p,%d)\n", user, size, prdt, items);
-	info.items = items;
-	info.offset = user % PAGE_SIZE;
-	info.size = size;
-	info.prdt = prdt;
-	addr = user & PAGE_MASK;
-	while (info.size > 0) {
-		unsigned long phys = user_to_phys(addr);
-		if (!phys) {
-			MB_WARN("user to prdt fail: unknown addr %lx (%lx, %x)\n",
-				addr, user, size);
-			return -EINVAL;
-		}
-		prdt_proc(&info, phys);
-		addr += PAGE_SIZE;
-	}
-
-	/* flush cache */
-	MB_WDBG("flush PRDT %p, from %lx size %d\n", prdt, user, size);
-	dmac_flush_range((const void *)user, (const void *)(user + size));
-	for (idx = 0;; idx++) {
-		MB_WDBG("PRDT[%d] %p addr %x( ~ %x) size %d EDT %d (%p ~ %p)\n",
-			idx, &prdt[idx], prdt[idx].addr, prdt[idx].addr + prdt[idx].size, prdt[idx].size,
-			prdt[idx].EDT, __va(prdt[idx].addr), __va(prdt[idx].addr + prdt[idx].size));
-		outer_flush_range(prdt[idx].addr,
-			prdt[idx].addr + prdt[idx].size);
-		if (prdt[idx].EDT)
-			break;
-	}
-
-	/* show_prdt(prdt); */
-	return 0;
-}
-EXPORT_SYMBOL(user_to_prdt);
-
-int mb_to_prdt(
-	unsigned long phys,
-	unsigned int size,
-	struct prdt_struct *prdt,
-	unsigned int items)
-{
-	struct prdt_info info = {0};
-	unsigned long addr;
-	void *virt = NULL;
-	int idx;
-
-	if (!prdt || ((size / PAGE_SIZE) + 2) > items) {
-		MB_WARN("PRD table space not enough (ptr %p at least %lu but %d).\n",
-			prdt, (size/PAGE_SIZE)+2, items);
-		return -EINVAL;
-	}
-
-	MB_DBG("Memory(%#lx,%#x) PRDT(%p,%d)\n", phys, size, prdt, items);
-	info.items = items;
-	info.offset = phys % PAGE_SIZE;
-	info.size = size;
-	info.prdt = prdt;
-	addr = phys & PAGE_MASK;
-	while (info.size > 0) {
-		prdt_proc(&info, addr);
-		addr += PAGE_SIZE;
-	}
-
-	/* flush cache */
-	MB_WDBG("PRDT %p, from %lx size %d\n", prdt, phys, size);
-    virt = mb_phys_to_virt(phys);
-	dmac_flush_range(virt, virt + size);
-	for (idx = 0;; idx++) {
-		MB_WDBG("PRDT[%d] addr %x size %d EDT %d\n",
-			idx, prdt[idx].addr, prdt[idx].size, prdt[idx].EDT);
-		outer_flush_range(prdt[idx].addr,
-			prdt[idx].addr + prdt[idx].size);
-		if (prdt[idx].EDT)
-			break;
-	}
-
-	/* show_prdt(prdt); */
-	return 0;
-}
-EXPORT_SYMBOL(mb_to_prdt);
-
+/*!*************************************************************************
+* wmt_mmu_table_size
+*
+* Public Function
+*/
+/*!
+* \brief
+*   estimate request mmu table size for input size
+*
+* \parameter
+*   size  [IN] convert size
+*
+* \retval  size of needed mmu table
+*/
 unsigned int wmt_mmu_table_size(unsigned int size)
 {
 	unsigned int nPte, nPde, need;
@@ -556,42 +733,65 @@ unsigned int wmt_mmu_table_size(unsigned int size)
 	if (!size)
 		return 0;
 
-	nPte = (size / PAGE_SIZE) + 2; /* maybe cross page up and down boundary */
-	nPde = PAGE_ALIGN(nPte * 4) / PAGE_SIZE;
-	need = PAGE_ALIGN(nPde * 4);
+	nPte = ((PAGE_ALIGN(size)) / PAGE_SIZE) + 1;
+	nPde = ALIGN(nPte, 1024) / 1024;
+
+	need = (ALIGN(nPde, 1024) / 1024) * PAGE_SIZE;
 	need += nPte * 4;
 
-	MB_DBG("PDE %d PTE %d RequestSize %d\n", nPde, nPte, need);
+	printk(KERN_DEBUG "PDE %d PTE %d RequestSize %d\n", nPde, nPte, need);
 	return need;
 }
 EXPORT_SYMBOL(wmt_mmu_table_size);
 
+/*!*************************************************************************
+* wmt_mmu_table_check
+*
+* Public Function
+*/
+/*!
+* \brief
+*   check pre-allocated mmu table is valid for input size
+*
+* \parameter
+*   mmu_addr  [IN] mmu table address
+*   mmu_size  [IN] mmu table size
+*   size      [IN] convert size
+*
+* \retval  1 if success
+*/
 int wmt_mmu_table_check(
-	unsigned int mmuPhys,
-	unsigned int mmuSize,
+	unsigned int *mmu_addr,
+	unsigned int mmu_size,
 	unsigned int size)
 {
-	int request;
+	unsigned int nPte, nPde, request;
 
 	if (!size) {
-		MB_WARN("mmu table failure. NULL size\n");
+		printk(KERN_WARNING "mmu create failure. NULL size\n");
 		return 0;
 	}
 
-	if (!mmuSize) {
-		MB_WARN("mmu table failure. NULL mmu size\n");
+	if (!mmu_size) {
+		printk(KERN_WARNING "mmu create failure. NULL mmu size\n");
 		return 0;
 	}
 
-	if (mmuPhys % PAGE_SIZE) {
-		MB_WARN("mmu table failure. PDE Table not align\n");
+	if ((unsigned int)mmu_addr % PAGE_SIZE) {
+		printk(KERN_WARNING "mmu create fail. PDE Table not align\n");
 		return 0;
 	}
 
-	request = wmt_mmu_table_size(size);
-	if (mmuSize < request) {
-		MB_WARN("mmu table failure. size %d < %d (request)\n",
-			mmuSize, request);
+	nPte = ((PAGE_ALIGN(size)) / PAGE_SIZE) + 1;
+	nPde = ALIGN(nPte, 1024) / 1024;
+
+	request = (ALIGN(nPde, 1024) / 1024) * PAGE_SIZE;
+	request += nPte * 4;
+
+	if (mmu_size < request) {
+		printk(KERN_WARNING "mmu create fail. out of mmu size\n");
+		printk(KERN_WARNING "(pde %d pte %d request %d but %d)\n",
+			nPde, nPte, request, mmu_size);
 		return 0;
 	}
 
@@ -599,253 +799,397 @@ int wmt_mmu_table_check(
 }
 EXPORT_SYMBOL(wmt_mmu_table_check);
 
+/*!*************************************************************************
+* wmt_mmu_table_dump
+*
+* Public Function
+*/
+/*!
+* \brief
+*   dump mmu table
+*
+* \parameter
+*   mmu_addr   [IN] mmu table address
+*   size       [IN] convert size
+*   virBufAddr [IN] offset combination of PDE, PTE, and ADDRESS
+*
+* \retval none
+*/
 void wmt_mmu_table_dump(struct mmu_table_info *info)
 {
-	unsigned int size, iPde, iPte, addrOffset;
-	unsigned int *mmuVirt, *pte = NULL, *pde = NULL;
+	unsigned int *mmu_addr;
+	unsigned int size;
+	unsigned int virBufAddr;
+	unsigned int *pte = NULL, *pde = NULL;
+	unsigned int pdeOffset, pteOffset, addrOffset, i = 0;
 
 	if (info == 0) {
-		MB_ERROR("[WMT_MMU_TABLE] Null input pointer\n");
+		printk(KERN_ERR "[WMT_MMU_TABLE] Null input pointer\n");
 		return;
 	}
 
-	mmuVirt = (unsigned int *)mb_phys_to_virt(info->addr);
+	mmu_addr = (unsigned int *)mb_phys_to_virt(info->addr);
 
 	size = info->size;
-	iPte = (info->offset >> 12) % 1024;
-	iPde = (info->offset >> 22) % 1024;
-	addrOffset = info->offset % PAGE_SIZE;
+	virBufAddr = info->offset;
 
-	MB_INFO("MMU (%x): offset pde %x pte %x addr %x\n",
-		info->offset, iPde, iPte, addrOffset);
+	addrOffset = virBufAddr % PAGE_SIZE;
+	pteOffset = (virBufAddr >> 12) % 1024;
+	pdeOffset = (virBufAddr >> 22) % 1024;
 
-	pde = mmuVirt;
-	pte = mb_phys_to_virt(pde[iPde]);
+	printk(KERN_INFO "MMU (%x): offset pde %x pte %x addr %x\n",
+		virBufAddr, pdeOffset, pteOffset, addrOffset);
+
+	pde = mmu_addr;
+	pde += pdeOffset;
+	pte = mb_phys_to_virt(*pde);
+	pte += pteOffset;
+
 	while (size > 0) {
-		int pageSize = min((unsigned int)(PAGE_SIZE - addrOffset), size);
-		MB_INFO("PDE(%p/%#x @ %d) -> PTE(%p/%#x @ %d) -> %#x, s %#x # %#x\n",
-			pde + iPde, info->addr + iPde * sizeof(pde), iPde,
-			pte + iPte, pde[iPde] + iPte * sizeof(pte), iPte,
-			pte[iPte] + addrOffset, pageSize, size);
-		iPte++;
+		printk(KERN_INFO "[%5d] PDE(%p/%lx) -> PTE(%p/%lx) -> addr %x\n",
+			i, pde, mb_virt_to_phys(pde), pte, mb_virt_to_phys(pte),
+			*pte + addrOffset);
+		if ((size + addrOffset) < PAGE_SIZE)
+			break;
+		size -= PAGE_SIZE - addrOffset;
 		addrOffset = 0;
-		size -= pageSize;
-		if (!(iPte % 1024)) {
-			iPde++;
-			iPte = 0;
-			pte = mb_phys_to_virt(pde[iPde]);
-		}
+		i++;
+		pte++;
+		if (!(i % 1024))
+			pde++;
 	}
 }
 EXPORT_SYMBOL(wmt_mmu_table_dump);
 
-/* parameter:
-   mmuPhys  [IN] mmu table phys address
-   mmuSize  [IN] mmu table size
-   addr     [IN] physical address of convert data
-   size     [IN] convert size */
+/*!*************************************************************************
+* wmt_mmu_table_from_phys
+*
+* Public Function
+*/
+/*!
+* \brief
+*   make up mmu table for physical memory
+*
+* \parameter
+*   mmu_addr  [IN] mmu table address
+*   mmu_size  [IN] mmu table size
+*   addr      [IN] physical address of convert data
+*   size      [IN] convert size
+*
+* \retval 0xFFFFFFFF if fail
+*         offset combination of PDE, PTE, and ADDRESS if success
+*/
 unsigned int wmt_mmu_table_from_phys(
-	unsigned int mmuPhys,
-	unsigned int mmuSize,
+	unsigned int *mmu_addr,
+	unsigned int mmu_size,
 	unsigned int addr,
 	unsigned int size)
 {
-	unsigned int iPde, iPte, nPte, nPde, virBufAddr;
-	unsigned int *pte, *pde, *mmuVirt;
-	int64_t len = size;
-	void *virt = NULL;
+	unsigned int iPte, nPte, nPde, gPde, virBufAddr;
+	unsigned int *pte = NULL, *pde = NULL;
 
-	iPde = iPte = nPte = nPde = 0;
-	if (!wmt_mmu_table_check(mmuPhys, mmuSize, size)) {
-		MB_WARN("phys %x (size %d) to mmu fail\n", addr, size);
+	iPte = gPde = nPte = nPde = 0;
+	if (!wmt_mmu_table_check(mmu_addr, mmu_size, size)) {
+		printk(KERN_WARNING
+			"phys %x (size %d) to mmu fail\n", addr, size);
 		return 0xFFFFFFFF;
 	}
 
-	virt = mb_phys_to_virt(addr);
 	virBufAddr = addr % PAGE_SIZE;
-	nPte = size / PAGE_SIZE + 2;
-	nPde = PAGE_ALIGN(nPte * 4) / PAGE_SIZE;
-	pde = mmuVirt = mb_phys_to_virt(mmuPhys);
-	pte = pde + nPde * 1024;
-	*pde = mmuPhys + nPde * PAGE_SIZE;
-	MB_DBG("[%s] pde %p/%x # %d pte %p/%x # %d\n",
-		__func__, pde, mmuPhys, nPde, pte, *pde, nPte);
+	nPte = ((PAGE_ALIGN(size)) / PAGE_SIZE);
+	if (virBufAddr)
+		nPte++;
+	nPde = ALIGN(nPte, 1024) / 1024;
+	gPde = ALIGN(nPde, 1024) / 1024;
 
-	while (len > 0) {
-		pte[iPte] = addr & PAGE_MASK;
-		iPte++;
+	pde = mmu_addr;
+	pte = pde + (gPde * PAGE_SIZE / sizeof(pte));
+	*pde = mb_virt_to_phys(pte);
+	pde++;
+
+	size += virBufAddr;
+	while (size > 0) {
+		*pte = addr & PAGE_MASK;
+		pte++; iPte++;
 		if (!(iPte % 1024)) {
-			pde[iPte + 1] = pde[iPte] + PAGE_SIZE;
-			iPte++;
+			*pde = mb_virt_to_phys(pte);
+			pde++;
 		}
+		if (size < PAGE_SIZE)
+			break;
+		size -= PAGE_SIZE;
 		addr += PAGE_SIZE;
-		len -= PAGE_SIZE;
 	}
-
-	dmac_flush_range(virt, virt + size);
-	outer_flush_range(addr, addr + size);
 
 	return virBufAddr;
 }
 EXPORT_SYMBOL(wmt_mmu_table_from_phys);
 
-struct mmu_info {
+
+struct mmu_search_info {
+	int iPte;
+	unsigned *pte;
+	unsigned *pde;
 	unsigned int size;
-	unsigned int iPte;
-	unsigned int *pte;
-	unsigned int *pde;
 };
 
-static inline int wmt_mmu_table_proc(struct mmu_info *info, unsigned long phys)
+static int wmt_mmu_table_from_user_proc(
+	void *priv, dma_addr_t phys, int offset)
 {
-	int pageSize, offset;
-	if (!info) {
-		MB_WARN("WMT MMU process fail. (NULL info)\n");
-		return -1;
-	}
+	struct mmu_search_info *info = (struct mmu_search_info *)priv;
 
-	if (info->size <= 0) {
-		MB_WARN("WMT MMU process fail. (size %d)\n", info->size);
-		return -1;
-	}
-
-	offset = phys % PAGE_SIZE;
-	pageSize = min((unsigned int)(PAGE_SIZE - offset), info->size);
 	*info->pte = phys & PAGE_MASK;
-	info->size -= pageSize;
-	MB_WDBG("\t[PTE] PDE[%d](%p)=%x PTE[%d](%p)=%x size %#x left %#x\n",
-		info->iPte/1024, info->pde, *info->pde, info->iPte,
-		info->pte, *info->pte, pageSize, info->size);
 
-	info->pte++;
+	printk(KERN_DEBUG
+		"\t\t\t[PTE] PDE[%d](%p)=%x PTE[%d](%p)=%x left %d\n",
+		info->iPte/1024, info->pde, *info->pde,
+		info->iPte, info->pte, *info->pte, info->size);
+	info->size -= PAGE_SIZE;
+	if (info->size < PAGE_SIZE)
+		return MMU_SEARCH_DONE;
 	info->iPte++;
+	info->pte++;
 	if (!(info->iPte % 1024)) {
 		*info->pde = mb_virt_to_phys(info->pte);
 		info->pde++;
 	}
-
 	return 0;
 }
 
-/* parameter:
-   mmuPhys  [IN] mmu table phys address
-   mmuSize  [IN] mmu table size
-   addr     [IN] physical address of convert data
-   size     [IN] convert size */
+/*!*************************************************************************
+* wmt_mmu_table_from_user
+*
+* Public Function
+*/
+/*!
+* \brief
+*   make up mmu table for user memory
+*
+* \parameter
+*   mmu_addr  [IN] mmu table address
+*   mmu_size  [IN] mmu table size
+*   addr      [IN] physical address of convert data
+*   size      [IN] convert size
+*
+* \retval 0xFFFFFFFF if fail
+*         offset combination of PDE, PTE, and ADDRESS if success
+*/
 unsigned int wmt_mmu_table_from_user(
-	unsigned int mmuPhys,
-	unsigned int mmuSize,
+	unsigned int *mmu_addr,
+	unsigned int mmu_size,
 	unsigned int user,
 	unsigned int size)
 {
 #ifndef __KERNEL__
-	return wmt_mmu_table_from_phys(mmuPhys, mmuSize, user, size);
+	return wmt_mmu_table_from_phys(mmu_addr, mmu_size, user, size);
 #else
-	struct mmu_info info = {0};
-	unsigned int nPte, nPde;
-	unsigned long addr = user;
-	int offset = user % PAGE_SIZE;
+	struct mm_struct *mm = current->mm;
+	struct vm_area_struct *vma;
+	unsigned long addr, end, offset;
+	unsigned int nPte, nPde, virBufAddr;
+	struct mmu_search_info info = {0};
+	pgd_t *pgd;
+	int ret;
 
-	if (!wmt_mmu_table_check(mmuPhys, mmuSize, size)) {
-		printk(KERN_WARNING "user %x (size %d) to mmu fail\n",
+	nPte = nPde = 0;
+	if (!wmt_mmu_table_check(mmu_addr, mmu_size, size)) {
+		printk(KERN_WARNING "phys %x (size %d) to mmu fail\n",
 			user, size);
 		return 0xFFFFFFFF;
 	}
 
-	MB_DBG("[%s] Memory(%#x,%#x) MMU(%#x,%d)\n",
-		__func__, user, size, mmuPhys, mmuSize);
-	nPte = size / PAGE_SIZE + 2;
-	nPde = PAGE_ALIGN(nPte * 4) / PAGE_SIZE;
-	info.size = size;
-	info.pde = mb_phys_to_virt(mmuPhys);
-	info.pte = info.pde + nPde * 1024;
-	*info.pde = mmuPhys + nPde * PAGE_SIZE;
-	dmac_flush_range((const void *)user, (const void *)(user + size));
-	while (info.size > 0) {
-		unsigned long phys = user_to_phys(addr);
-		int pageSize = min((unsigned int)(PAGE_SIZE - offset), info.size);
-		if (!phys) {
-			MB_WARN("user to mmu fail: unknown addr %lx (%x # %x)\n",
-				addr, user, size);
-			return -EINVAL;
-		}
-		outer_flush_range(phys, phys + pageSize);
-		wmt_mmu_table_proc(&info, phys);
-		addr += pageSize;
-		offset = 0;
-	}
+	virBufAddr = user % PAGE_SIZE;
+	nPte = ((PAGE_ALIGN(size)) / PAGE_SIZE);
+	if (virBufAddr)
+		nPte++;
+	nPde = ALIGN(ALIGN(nPte, 1024) / 1024, 1024) / 1024;
 
-	return user % PAGE_SIZE;
+	info.pde = mmu_addr;
+	info.pte = info.pde + (nPde * PAGE_SIZE / sizeof(info.pte));
+	*info.pde = mb_virt_to_phys(info.pte);
+	info.pde++;
+
+	printk(KERN_DEBUG "Memory(%#x,%d)\n", user, size);
+	down_read(&mm->mmap_sem);
+	info.size = size + virBufAddr;
+	addr = (unsigned long)user;
+	while (info.size > 0) {
+		vma = find_vma(mm, addr);
+		if (vma == NULL) {
+			printk(KERN_WARNING
+				"user addr %lx not found in task %s\n",
+				addr, current->comm);
+			goto fault;
+		}
+		printk(KERN_DEBUG
+			"VMA found: start %lx end %lx\n",
+			vma->vm_start, vma->vm_end);
+		offset = addr - vma->vm_start;
+		addr = vma->vm_start;
+		end = PAGE_ALIGN(vma->vm_end);
+		pgd = pgd_offset(mm, vma->vm_start);
+		ret = mmu_search_pgd(pgd, end, &addr, &offset,
+			wmt_mmu_table_from_user_proc, &info);
+		if (ret == MMU_SEARCH_DONE)
+			break;
+		if (ret)
+			goto fault;
+	}
+	up_read(&mm->mmap_sem);
+	return virBufAddr;
+fault:
+	printk(KERN_WARNING "USER TO PRDT unfinished, remain size %d\n", size);
+	up_read(&mm->mmap_sem);
+	return 0xFFFFFFFF;
 #endif
 }
 EXPORT_SYMBOL(wmt_mmu_table_from_user);
 
-/* parameter:
-   addr      [IN] start address (user or phys depends on addr_type)
-   size      [IN] size of memory
-   addrType  [IN] address type (0: phys 1: user)
-   info      [out] pointer of mmu table info */
+/*!*************************************************************************
+* wmt_mmu_table_create
+*
+* Public Function
+*/
+/*!
+* \brief
+*   automatically make up mmu table from giving address
+*
+* \parameter
+*   addr      [IN] start address (user of phys depends on addr_type)
+*   size      [IN] size of memory
+*   addr_type [IN] address type (0: phys 1: user)
+*   info      [out] pointer of mmu table info
+*
+* \retval  0 if success, otherwise error code
+*/
 unsigned int wmt_mmu_table_create(
 	unsigned int addr,
 	unsigned int size,
-	unsigned int addrType,
+	unsigned int addr_type,
 	struct mmu_table_info *info)
 {
-	int i, nPde, nPte, *pde, mmuSize;
+	unsigned int mmuSize = 0;
 	unsigned int *mmuAddr = NULL;
 
-	if (!addr || !size || !info || addrType > 1) {
-		MB_ERROR("[WMT_MMU_TABLE] invalid args:\n");
-		MB_ERROR("\t addr %x # %x type %x info %p\n",
-			addr, size, addrType, info);
+	if (!addr || !size || !info || addr_type > 1) {
+		printk(KERN_ERR "[WMT_MMU_TABLE] invalid args:\n");
+		printk(KERN_ERR "\t addr %x # %x type %x info %p\n",
+			addr, size, addr_type, info);
 		return -EINVAL;
 	}
 
 	mmuSize = wmt_mmu_table_size(size);
+
 	info->addr = mb_alloc(mmuSize);
-	info->size = size;
-	MB_DBG("[%s] mmu table (%#x # %#x) addr %#x size %#x type %d\n",
-		__func__, info->addr, mmuSize, addr, size, addrType);
 	if (!info->addr) {
-		MB_ERROR("[%s] fail. Out of MB (%d)\n", __func__, mmuSize);
+		printk(KERN_ERR "[WMT_MMU_TABLE] create fail. Out of MB (%d)\n",
+			mmuSize);
 		return -ENOMEM;
 	}
+	info->size = size;
+	mmuAddr = (unsigned int *)mb_phys_to_virt(info->addr);
 
-	pde = mmuAddr = (unsigned int *)mb_phys_to_virt((unsigned long)info->addr);
-	memset(mmuAddr, 0x0, mmuSize);
-	nPte = (size / PAGE_SIZE) + 2; /* maybe cross page up and down boundary */
-	nPde = PAGE_ALIGN(nPte * 4) / PAGE_SIZE;
-	for (i = 1; i <= nPde; i++, pde++)
-		*pde = info->addr + i * PAGE_SIZE;
-	info->offset = (addrType) ?
-		wmt_mmu_table_from_user(info->addr, mmuSize, addr, size) :
-		wmt_mmu_table_from_phys(info->addr, mmuSize, addr, size);
+	info->offset = (addr_type) ?
+		wmt_mmu_table_from_user(mmuAddr, mmuSize, addr, size) :
+		wmt_mmu_table_from_phys(mmuAddr, mmuSize, addr, size);
 
 	if (info->offset == 0xFFFFFFFF) {
-		MB_ERROR("[WMT_MMU_TABLE] create fail:");
-		MB_ERROR("\ttype %x addr %x # %x mmuAddr %p/%x # %d\n",
-			addrType, addr, size, mmuAddr, info->addr, info->size);
-		mb_free(info->addr);
+		printk(KERN_ERR "[WMT_MMU_TABLE] create fail:");
+		printk(KERN_ERR "\ttype %x addr %x # %x mmuAddr %p/%x # %d\n",
+			addr_type, addr, size, mmuAddr, info->addr, mmuSize);
 		return -EFAULT;
 	}
 
-	MB_DBG("[%s] success! (addr %#x size %#x offset %#x)\n",
-		__func__, info->addr, info->size, info->offset);
 	return 0;
 }
 EXPORT_SYMBOL(wmt_mmu_table_create);
 
+/*!*************************************************************************
+* wmt_mmu_table_destroy
+*
+* Public Function
+*/
+/*!
+* \brief
+*   automatically make up mmu table from giving address
+*
+* \parameter
+*   info [IN] start address (user of phys depends on addr_type)
+*
+* \retval  1 if success
+*/
 unsigned int wmt_mmu_table_destroy(struct mmu_table_info *info)
 {
 	if (!info) {
-		MB_ERROR("[WMT_MMU_TABLE] destroy fail. NULL mmu table info");
+		printk(KERN_ERR "[WMT_MMU_TABLE] destroy fail. NULL mmu table info");
 		return -EINVAL;
 	}
-	MB_DBG("[%s] success! addr %#x\n", __func__, info->addr);
 	mb_free(info->addr);
 	return 0;
 }
 EXPORT_SYMBOL(wmt_mmu_table_destroy);
+
+/* return address is guaranteeed only under page alignment */
+void *user_to_virt(unsigned long user)
+{
+	struct vm_area_struct *vma;
+	unsigned long flags;
+	void *virt = NULL;
+
+	spin_lock_irqsave(&mb_task_mm_lock, flags);
+	vma = find_vma(current->mm, user);
+	/* For kernel direct-mapped memory, take the easy way */
+	if (vma && (vma->vm_flags & VM_IO) && (vma->vm_pgoff)) {
+		unsigned long phys = 0;
+		/* kernel-allocated, mmaped-to-usermode addresses */
+		phys = (vma->vm_pgoff << PAGE_SHIFT) + (user - vma->vm_start);
+		virt = __va(phys);
+		MB_INFO("%s kernel-alloc, user-mmaped addr U %lx V %p P %lx",
+			__func__, user, virt, phys);
+	} else {
+		/* otherwise, use get_user_pages() for general userland pages */
+		int res, nr_pages = 1;
+		struct page *pages;
+		down_read(&current->mm->mmap_sem);
+		res = get_user_pages(current, current->mm,
+			user, nr_pages, 1, 0, &pages, NULL);
+		up_read(&current->mm->mmap_sem);
+		if (res == nr_pages)
+			virt = page_address(&pages[0]) + (user & ~PAGE_MASK);
+		MB_INFO("%s userland addr U %lx V %p", __func__, user, virt);
+	}
+	spin_unlock_irqrestore(&mb_task_mm_lock, flags);
+
+	return virt;
+}
+EXPORT_SYMBOL(user_to_virt);
+
+int user_to_prdt(
+	unsigned long user,
+	unsigned int size,
+	struct prdt_struct *next,
+	unsigned int items)
+{
+	int ret;
+
+	switch (USR2PRDT_METHOD) {
+	case 1:
+		ret = __user_to_prdt1(user, size, next, items);
+		break;
+	case 2:
+		ret = __user_to_prdt2(user, size, next, items);
+		break;
+	default:
+		ret = __user_to_prdt(user, size, next, items);
+		break;
+	}
+
+	if (MBMSG_LEVEL > 1)
+		show_prdt(next);
+
+	return ret;
+}
+EXPORT_SYMBOL(user_to_prdt);
 
 static int mb_show_mb(
 	struct mb_struct *mb,
@@ -2509,147 +2853,6 @@ RESCAN_MBA:
 			mb->phys, mb->phys + size);
 		spin_unlock_irqrestore(&mb_ioctl_lock, flags);
 		return 0;
-
-	/* _IOW(MB_IOC_MAGIC, 19, unsigned long) // I: phys address */
-	case MBIO_STATIC_GET:
-		get_user(value, (unsigned long *)arg);
-		if (!value || !mbti->task_name || tgid == MB_DEF_TGID) {
-			MB_WARN("GET(STATIC): invalid args %lx/%d/%s\n",
-				value, tgid, mbti->task_name);
-			return -EINVAL;
-		}
-
-		ret = mb_do_get(value, MB_DEF_TGID, mbti->task_name);
-		if (ret != 0)
-			MB_WARN("GET(STATIC): fail (args %lx/%d/%s). ret %d\n",
-				value, tgid, mbti->task_name, ret);
-		MB_OPDBG("GET(STATIC): phys %8lx done\n\n", value);
-		break;
-
-	/* _IOW(MB_IOC_MAGIC, 20, unsigned long) // I: phys address */
-	case MBIO_STATIC_PUT:
-		get_user(value, (unsigned long *)arg);
-		if (!value || !mbti->task_name || tgid == MB_DEF_TGID) {
-			MB_WARN("PUT(STATIC): invalid args %lx/%d/%s\n",
-				value, tgid, mbti->task_name);
-			return -EINVAL;
-		}
-
-		ret = mb_do_put(value, MB_DEF_TGID, mbti->task_name);
-		if (ret != 0)
-			MB_WARN("PUT(STATIC): fail (args %lx/%d/%s). ret %d\n",
-				value, tgid, mbti->task_name, ret);
-		MB_OPDBG("PUT(STATIC): phys %8lx done\n\n", value);
-		break;
-
-	/* _IOWR(MB_IOC_MAGIC, 100, unsigned long)
-	   I: user address O: physical address */
-	case MBIO_TEST_USER2PHYS:
-		get_user(value, (unsigned long *)arg);
-		if (!value) {
-			MB_WARN("USER2PHYS: invalid args %lx/%d/%s\n",
-				value, tgid, mbti->task_name);
-			return -EINVAL;
-		}
-		phys = user_to_phys(value);
-		put_user(phys, (unsigned long *)arg);
-		if (!phys)
-			MB_WARN("USER2PHYS fail: value %#lx phys %#lx\n", value, phys);
-		break;
-
-	/* _IOWR(MB_IOC_MAGIC, 101, unsigned long)
-	   I: user address, size, prdt addr, and prdt size */
-	case MBIO_TEST_USER2PRDT:
-	/* _IOW(MB_IOC_MAGIC, 103, unsigned long)
-	*  I: user address, size, prdt addr, and prdt size */
-	case MBIO_TEST_MB2PRDT: {
-		int items, type = (cmd == MBIO_TEST_MB2PRDT) ? 0 : 1;
-		unsigned long size,  data[4] = {0};
-		struct prdt_struct *prdt;
-		copy_from_user(data, (const void *)arg, 4 * sizeof(unsigned long));
-		if (!data[0] || !data[1] || !data[2] || !data[3]) {
-			MB_WARN("%s: invalid args [%#lx, %#lx, %#lx, %#lx]\n",
-				type ? "MB2PRDT" : "USER2PRDT",
-				data[0], data[1], data[2], data[3]);
-			return -EINVAL;
-		}
-		items = data[1] / PAGE_SIZE + 2;
-		size = items * sizeof(struct prdt_struct);
-		if (data[3] < size) {
-			MB_WARN("%s: invalid args. prdt size %#lx < %#lx\n",
-				type ? "MB2PRDT" : "USER2PRDT", data[3], size);
-			return -EINVAL;
-		}
-		prdt = kmalloc(size, GFP_ATOMIC);
-		if (prdt == NULL) {
-			MB_WARN("%s: fail, no prdt space %d for size %ld\n",
-				type ? "MB2PRDT" : "USER2PRDT",
-				items * sizeof(struct prdt_struct), data[1]);
-			return -EINVAL;
-		}
-		MB_DBG("%s: IN %#lx, %#lx, %#lx, %#lx\n",
-			type ? "MB2PRDT" : "USER2PRDT",
-			data[0], data[1], data[2], data[3]);
-		memset(prdt, 0x0, items * sizeof(struct prdt_struct));
-		if ((!type && !mb_to_prdt(data[0], data[1], prdt, items)) ||
-			(!user_to_prdt(data[0], data[1], prdt, items))) {
-			if (MBMSG_LEVEL)
-				show_prdt(prdt);
-			copy_to_user((void __user *)data[2], prdt, size);
-			MB_INFO("%s: Done %#lx, %#lx, %#lx, %#lx\n",
-				type ? "MB2PRDT" : "USER2PRDT",
-				data[0], data[1], data[2], data[3]);
-		} else {
-			MB_WARN("%s: fail.\n", type ? "MB2PRDT" : "USER2PRDT");
-			ret = -EINVAL;
-		}
-		kfree(prdt);
-		break;
-	}
-
-	/* _IOWR(MB_IOC_MAGIC, 102, unsigned long)
-	   I: user address, size, mmu addr, and mmu size O: mmu physical addr */
-	case MBIO_TEST_USER2MMUT:
-	/* _IOWR(MB_IOC_MAGIC, 104, unsigned long)
-	   I: user address, size, mmu addr, and mmu size O: mmu physical addr */
-	case MBIO_TEST_MB2MMUT: {
-		int type = (cmd == MBIO_TEST_MB2MMUT) ? 0 : 1;
-		unsigned long mmuSize, data[4] = {0};
-		struct mmu_table_info info = {0};
-		copy_from_user(data, (const void *)arg, 4 * sizeof(unsigned long));
-		if (!data[0] || !data[1] || !data[2] || !data[3]) {
-			MB_WARN("%s: invalid args [%#lx, %#lx, %#lx, %#lx]\n",
-				type ? "USER2MMUT" : "PHYS2MMUT",
-				data[0], data[1], data[2], data[3]);
-			return -EINVAL;
-		}
-		mmuSize = wmt_mmu_table_size(data[1]);
-		if (data[3] < mmuSize) {
-			MB_WARN("%s: invalid args. mmu size %#lx < %#lx\n",
-				type ? "MB2PRDT" : "USER2PRDT", data[3], mmuSize);
-			return -EINVAL;
-		}
-		MB_DBG("%s: IN %#lx, %#lx, %#lx, %#lx(req %#lx)\n",
-			type ? "USER2MMUT" : "PHYS2MMUT",
-			data[0], data[1], data[2], data[3], mmuSize);
-		if (wmt_mmu_table_create(data[0], data[1], type, &info) == 0) {
-			void *mmuAddr = mb_phys_to_virt((unsigned long)info.addr);
-			if (MBMSG_LEVEL)
-				wmt_mmu_table_dump(&info);
-			copy_to_user((void __user *)data[2], mmuAddr, mmuSize);
-			put_user(info.addr, (unsigned long *)arg);
-			ret = mb_do_get(info.addr, MB_DEF_TGID, mbti->task_name);
-			wmt_mmu_table_destroy(&info);
-			MB_INFO("%s: Done %#lx, %#lx, %#lx, %#lx\n",
-				type ? "USER2MMUT" : "PHYS2MMUT",
-				data[0], data[1], data[2], data[3]);
-		} else {
-			MB_WARN("%s: fail. no mmu table space for size %ld\n",
-				type ? "USER2MMUT" : "PHYS2MMUT", data[1]);
-			return -EINVAL;
-		}
-		break;
-	}
 
 	default:
 		ret = -ENOTTY;

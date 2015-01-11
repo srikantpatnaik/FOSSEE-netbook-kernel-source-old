@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/vpp-osif.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -68,8 +68,6 @@
 #define MSG(fmt, args...)
 #define DBGMSG(fmt, args...)
 #endif
-
-#define HW_REG volatile
 
 /* -------------------------------------------------- */
 #ifdef CONFIG_KERNEL
@@ -145,6 +143,9 @@ extern	"C" {
 
 #define mdelay(x) wmt_delayus(1000 * x)
 #define udelay(x) wmt_delayus(x)
+#define REG32_VAL(addr)	(*(volatile unsigned int *)(addr))
+#define REG16_VAL(addr)	(*(volatile unsigned short *)(addr))
+#define REG8_VAL(addr)	(*(volatile unsigned char *)(addr))
 
 #define mb_alloc(a)	malloc(a)
 #define kmalloc(a, b)	malloc(a)
@@ -168,6 +169,7 @@ extern	"C" {
 #define KERN_INFO
 
 #define printk printf
+#define BIT(x) (1 << x)
 #endif
 
 /*-------------------- EXPORTED PRIVATE TYPES---------------------------------*/
@@ -195,13 +197,6 @@ extern void wmt_i2c_xfer_continue_if(struct i2c_msg *msg,
 extern void wmt_i2c_xfer_if(struct i2c_msg *msg);
 extern int wmt_i2c_xfer_continue_if_4(struct i2c_msg *msg,
 					unsigned int num, int bus_id);
-#else
-inline unsigned int inl(unsigned int offset);
-inline void outl(unsigned int val, unsigned int offset);
-inline unsigned short inw(unsigned int offset);
-inline void outw(unsigned short val, unsigned int offset);
-inline unsigned char inb(unsigned int offset);
-inline void outb(unsigned char val, unsigned int offset);
 #endif
 
 #ifdef CONFIG_UBOOT
@@ -222,7 +217,6 @@ extern int get_num(unsigned int min, unsigned int max,
 				char *message, unsigned int retry);
 #endif
 
-extern unsigned int wmt_read_oscr(void);
 int wmt_getsyspara(char *varname, char *varval, int *varlen);
 int vpp_request_irq(unsigned int irq_no, void *routine,
 				unsigned int flags, char *name, void *arg);
@@ -245,16 +239,6 @@ int vpp_i2c_init(int i2c_id, unsigned short addr);
 int vpp_i2c_release(void);
 void vpp_set_clock_enable(enum dev_id dev, int enable, int force);
 void vpp_udelay(unsigned int us);
-unsigned int vppif_reg32_write(unsigned int offset,
-	unsigned int mask, unsigned int shift, unsigned int val);
-unsigned int vppif_reg32_read(unsigned int offset,
-	unsigned int mask, unsigned int shift);
-unsigned int vppif_reg32_mask(unsigned int offset,
-	unsigned int mask, unsigned int shift);
-void vpp_reg_dump(unsigned int addr, int size);
-unsigned int *vpp_backup_reg(unsigned int addr, unsigned int size);
-int vpp_restore_reg(unsigned int addr,
-	unsigned int size, unsigned int *reg_ptr);
 
 #ifdef	__cplusplus
 }
