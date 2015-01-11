@@ -160,43 +160,122 @@ static unsigned int vt1603_hw_read(struct snd_soc_codec *codec,
 
 /*----------------------IRQ handle Functions----------------------------*/
 
+static int vt1603_hp_power_up(struct snd_soc_codec *codec)
+{
+	u16 reg;
+
+	/* disable mono mixing */
+	reg = snd_soc_read(codec, VT1603_R0d);
+	reg &= ~BIT4;
+	snd_soc_write(codec, VT1603_R0d, reg);
+
+	/* make sure DAC R channel is enable */
+	reg = snd_soc_read(codec, VT1603_R62);
+	reg |= BIT4;
+	snd_soc_write(codec, VT1603_R62, reg);
+
+	// set HP power up
+	reg = snd_soc_read(codec, VT1603_R68);
+	reg &= ~BIT4;
+	snd_soc_write(codec, VT1603_R68, reg);
+
+	return 0;
+}
+
+static int vt1603_classd_power_up(struct snd_soc_codec *codec)
+{
+	u16 reg;
+
+	// set class-d power up
+	reg = snd_soc_read(codec, VT1603_R25);
+	reg |= BIT1;
+	snd_soc_write(codec, VT1603_R25, reg);
+
+	return 0;
+}
+
+static int vt1603_hp_power_off(struct snd_soc_codec *codec)
+{
+	u16 reg;
+
+	// set HP power off
+	reg = snd_soc_read(codec, VT1603_R68);
+	reg |= BIT4;
+	snd_soc_write(codec, VT1603_R68, reg);
+
+	return 0;
+}
+
+static int vt1603_classd_power_off(struct snd_soc_codec *codec)
+{
+	u16 reg;
+
+	// set class-d power off
+	reg = snd_soc_read(codec, VT1603_R25);
+	reg &= ~BIT1;
+	snd_soc_write(codec, VT1603_R25, reg);
+
+	return 0;
+}
+static void vt1603_switch_to_hp(struct snd_soc_codec *codec)
+{
+	u16 reg;
+
+	vt1603_classd_power_off(codec);
+
+	if (codec->card->rtd->codec_dai->playback_active == 1)
+		vt1603_hp_power_up(codec);
+}
+
+static void vt1603_switch_to_classd(struct snd_soc_codec *codec)
+{
+	u16 reg;
+
+	vt1603_hp_power_off(codec);
+
+	if (codec->card->rtd->codec_dai->playback_active == 1)
+		vt1603_classd_power_up(codec);
+}
+
 static void vt1603_set_switch_state(struct snd_soc_codec *codec)
 {
-	/* Just report hp state, don't switch hw device, app will handle it. */
-	
 	struct vt1603_priv *vt1603 = snd_soc_codec_get_drvdata(codec);
 	unsigned int val = vt1603_hw_read(codec, VT1603_R21);
 	
 	if (vt1603_boardinfo.hp_level) {
 		if (val & BIT1) {
-			val &= ~BIT1;
-			snd_soc_write(codec, VT1603_R21, val);
 			if (!vt1603_boardinfo.ignore_hp_event)
 				switch_set_state(&vt1603->hp_switch, 0);
-			pr_info("<<<vt1603: hp out!\n");	
+			val &= ~BIT1;
+			snd_soc_write(codec, VT1603_R21, val);
+			pr_info("<<<vt1603: hp out!\n");
+			vt1603_switch_to_classd(codec);
 		} 
 		else {
-			val |= BIT1;
-			snd_soc_write(codec, VT1603_R21, val);
 			if (!vt1603_boardinfo.ignore_hp_event)
 				switch_set_state(&vt1603->hp_switch, 1);
+			val |= BIT1;
+			snd_soc_write(codec, VT1603_R21, val);
 			pr_info("<<<vt1603: hp in!\n");
+			vt1603_switch_to_hp(codec);
 		}
 	} 
 	else {
 		if (val & BIT1) {
-			val &= ~BIT1;
-			snd_soc_write(codec, VT1603_R21, val);
 			if (!vt1603_boardinfo.ignore_hp_event)
 				switch_set_state(&vt1603->hp_switch, 1);
+			val &= ~BIT1;
+			snd_soc_write(codec, VT1603_R21, val);
 			pr_info("<<<vt1603: hp in!\n");
+			vt1603_switch_to_hp(codec);
 		}
 		else {
-			val |= BIT1;
-			snd_soc_write(codec, VT1603_R21, val);
 			if (!vt1603_boardinfo.ignore_hp_event)
 				switch_set_state(&vt1603->hp_switch, 0);
-			pr_info("<<<vt1603: hp out!\n");	
+			val |= BIT1;
+			snd_soc_write(codec, VT1603_R21, val);
+			pr_info("<<<vt1603: hp out!\n");
+			vt1603_switch_to_classd(codec);
 		}
 	}
 }
