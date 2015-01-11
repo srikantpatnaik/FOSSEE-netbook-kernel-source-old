@@ -32,8 +32,8 @@
 # have been modified by MediaTek Inc. All revisions are subject to any receiver's
 # applicable license agreements with MediaTek Inc.
 
-obj-y += wmt/
-obj-y += fm/
-obj-y += bt/
-obj-y += gps/
+#obj-y += wmt/
+#obj-y += fm/
+#obj-y += bt/
+#obj-y += gps/
 

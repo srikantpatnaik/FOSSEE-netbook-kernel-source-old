@@ -37,5 +37,5 @@
 # Makefile for the Linux Bluetooth HCI device drivers.
 #
 
-obj-y += uhid/
+#obj-y += uhid/
 
