@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/osif.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,6 +43,7 @@
 static DEFINE_SPINLOCK(vpp_irqlock);
 static unsigned long vpp_lock_flags;
 #endif
+int vpp_dvi_i2c_id;
 
 /*--------------------- INTERNAL PRIVATE FUNCTIONS ---------------------------*/
 /* void lvds_xxx(void); *//*Example*/
@@ -52,34 +53,34 @@ static unsigned long vpp_lock_flags;
 #include <asm/io.h>
 #include <linux/proc_fs.h>
 #else
-inline unsigned int inl(unsigned int offset)
+__inline__ U32 inl(U32 offset)
 {
-	return *(unsigned int *)(offset);
+	return REG32_VAL(offset);
 }
 
-inline void outl(unsigned int val, unsigned int offset)
+__inline__ void outl(U32 val, U32 offset)
 {
-	(*(unsigned int *)(offset)) = val;
+	REG32_VAL(offset) = val;
 }
 
-inline unsigned short inw(unsigned int offset)
+static __inline__ U16 inw(U32 offset)
 {
-	return *(unsigned short *)(offset);
+	return REG16_VAL(offset);
 }
 
-inline void outw(unsigned short val, unsigned int offset)
+static __inline__ void outw(U16 val, U32 offset)
 {
-	(*(unsigned short *)(offset)) = val;
+	REG16_VAL(offset) = val;
 }
 
-inline unsigned char inb(unsigned int offset)
+static __inline__ U8 inb(U32 offset)
 {
-	return *(unsigned char *)(offset);
+	return REG8_VAL(offset);
 }
 
-inline void outb(unsigned char val, unsigned int offset)
+static __inline__ void outb(U8 val, U32 offset)
 {
-	(*(unsigned char *)(offset)) = val;
+	REG8_VAL(offset) = val;
 }
 #ifndef CFG_LOADER
 int get_key(void)
@@ -103,6 +104,7 @@ void mdelay(int ms)
 #endif
 #endif
 
+extern unsigned int wmt_read_oscr(void);
 void vpp_udelay(unsigned int us)
 {
 #if 1
@@ -131,6 +133,39 @@ void vpp_udelay(unsigned int us)
 }
 
 /* Internal functions */
+U8 vppif_reg8_in(U32 offset)
+{
+	return inb(offset);
+}
+
+U8 vppif_reg8_out(U32 offset, U8 val)
+{
+	outb(val, offset);
+	return val;
+}
+
+U16 vppif_reg16_in(U32 offset)
+{
+	return inw(offset);
+}
+
+U16 vppif_reg16_out(U32 offset, U16 val)
+{
+	outw(val, offset);
+	return val;
+}
+
+U32 vppif_reg32_in(U32 offset)
+{
+	return inl(offset);
+}
+
+U32 vppif_reg32_out(U32 offset, U32 val)
+{
+	outl(val, offset);
+	return val;
+}
+
 U32 vppif_reg32_write(U32 offset, U32 mask, U32 shift, U32 val)
 {
 	U32 new_val;
@@ -144,13 +179,11 @@ U32 vppif_reg32_write(U32 offset, U32 mask, U32 shift, U32 val)
 	outl(new_val, offset);
 	return new_val;
 }
-EXPORT_SYMBOL(vppif_reg32_write);
 
 U32 vppif_reg32_read(U32 offset, U32 mask, U32 shift)
 {
 	return (inl(offset) & mask) >> shift;
 }
-EXPORT_SYMBOL(vppif_reg32_read);
 
 U32 vppif_reg32_mask(U32 offset, U32 mask, U32 shift)
 {
@@ -183,21 +216,12 @@ void vpp_free_irq(unsigned int irq_no, void *arg)
 #ifndef __KERNEL__
 int wmt_getsyspara(char *varname, char *varval, int *varlen)
 {
-#ifdef CONFIG_VPOST
-	struct env_para_def param;
-#endif
 	int i = 0;
 	char *p;
 
-#ifdef CONFIG_VPOST
-	p = 0;
-	if (env_read_para(varname, &param) == 0)
-		p = param.value;
-#else
 	p = getenv(varname);
-#endif
 	if (!p) {
-		/* printf("## Warning: %s not defined\n", varname); */
+		printf("## Warning: %s not defined\n", varname);
 		return -1;
 	}
 	while (p[i] != '\0') {
@@ -206,14 +230,12 @@ int wmt_getsyspara(char *varname, char *varval, int *varlen)
 	}
 	varval[i] = '\0';
 	*varlen = i;
-/*	printf("getsyspara: %s,len %d\n", p, *varlen); */
-#ifdef CONFIG_VPOST
-	free(param.value);
-#endif
+	/* printf("getsyspara: %s,len %d\n", p, *varlen); */
 	return 0;
 }
 #endif
 
+#ifndef CONFIG_VPOST
 int vpp_parse_param(char *buf, unsigned int *param,
 					int cnt, unsigned int hex_mask)
 {
@@ -229,13 +251,8 @@ int vpp_parse_param(char *buf, unsigned int *param,
 
 	p = (char *)buf;
 	for (i = 0; i < cnt; i++) {
-#ifdef CONFIG_VPOST
-		param[i] = strtoul(p, &endp,
-				(hex_mask & (0x1 << i)) ? 16 : 0);
-#else
 		param[i] = simple_strtoul(p, &endp,
 				(hex_mask & (0x1 << i)) ? 16 : 0);
-#endif
 		if (*endp == '\0')
 			break;
 		p = endp + 1;
@@ -245,6 +262,7 @@ int vpp_parse_param(char *buf, unsigned int *param,
 	}
 	return i + 1;
 }
+#endif
 
 unsigned int vpp_lock_cnt;
 void vpp_lock_l(void)
@@ -355,7 +373,7 @@ int vpp_i2c_xfer(struct i2c_msg_s *msg, unsigned int num, int bus_id)
 		return ret;
 	}
 #elif defined(CONFIG_VPOST)
-	ret = i2c_transfer(msg, num);
+	ret = i2c_transfer(msg, 1);
 #else
 	ret = wmt_i2c_transfer(msg, num, bus_id);
 #endif
@@ -370,6 +388,7 @@ int vpp_i2c_init(int i2c_id, unsigned short addr)
 
 	DBGMSG("id %d,addr 0x%x\n", i2c_id, addr);
 
+	vpp_dvi_i2c_id = i2c_id;
 	if (i2c_id & VPP_DVI_I2C_SW_BIT)
 		return 0;
 
@@ -394,6 +413,7 @@ int vpp_i2c_init(int i2c_id, unsigned short addr)
 		DBG_ERR("i2c_add_driver fail\n");
 	return ret;
 #else
+	vpp_dvi_i2c_id = i2c_id & 0xF;
 	return 0;
 #endif
 }
@@ -446,6 +466,8 @@ int vpp_i2c_enhanced_ddc_read(int id, unsigned int addr,
 
 	vpp_i2c_lock = 1;
 
+	if (id & VPP_DVI_I2C_BIT)
+		id = vpp_dvi_i2c_id;
 	id = id & VPP_DVI_I2C_ID_MASK;
 	buf2[0] = 0x1;
 	buf2[1] = 0x0;
@@ -492,6 +514,8 @@ int vpp_i2c_read(int id, unsigned int addr,
 
 	vpp_i2c_lock = 1;
 
+	if (id & VPP_DVI_I2C_BIT)
+		id = vpp_dvi_i2c_id;
 	id = id & VPP_DVI_I2C_ID_MASK;
 	switch (id) {
 	case 0 ... 0xF:	/* hw i2c */
@@ -559,6 +583,8 @@ int vpp_i2c_write(int id, unsigned int addr, unsigned int index,
 
 	vpp_i2c_lock = 1;
 
+	if (id & VPP_DVI_I2C_BIT)
+		id = vpp_dvi_i2c_id;
 	id = id & VPP_DVI_I2C_ID_MASK;
 	switch (id) {
 	case 0 ... 0xF:	/* hw i2c */
@@ -624,7 +650,7 @@ int vpp_dbg_diag_index;
 int vpp_dbg_diag_delay;
 #endif
 
-int vpp_check_dbg_level(enum vpp_dbg_level_t level)
+int vpp_check_dbg_level(vpp_dbg_level_t level)
 {
 	if (level == VPP_DBGLVL_ALL)
 		return 1;
@@ -731,7 +757,7 @@ void vpp_dbg_wake_up(void)
 	wake_up(&vpp_dbg_wq);
 }
 
-int vpp_dbg_get_period_usec(struct vpp_dbg_period_t *p, int cmd)
+int vpp_dbg_get_period_usec(vpp_dbg_period_t *p, int cmd)
 {
 	struct timeval tv;
 	int tm_usec = 0;
@@ -766,7 +792,7 @@ int vpp_dbg_get_period_usec(struct vpp_dbg_period_t *p, int cmd)
 	return tm_usec;
 }
 
-void vpp_dbg_timer(struct vpp_dbg_timer_t *p, char *str, int cmd)
+void vpp_dbg_timer(vpp_dbg_timer_t *p, char *str, int cmd)
 {
 	struct timeval tv;
 	int tm_usec = 0;
@@ -805,9 +831,9 @@ void vpp_dbg_timer(struct vpp_dbg_timer_t *p, char *str, int cmd)
 			int us_1t;
 
 			us_1t = p->sum / p->cnt;
-			MSG("%s(Cnt %d)Sum %d us,Avg %d,Min %d,Max %d,",
-				str, p->cnt, p->sum, us_1t, p->min, p->max);
-			MSG("fps %d.%02d\n", 1000000 / us_1t,
+			MSG("%s(Cnt %d)Sum %d us,Avg %d,Min %d,Max %d,fps %d.%02d\n",
+				str, p->cnt, p->sum, us_1t,
+				p->min, p->max, 1000000 / us_1t,
 				(100000000 / us_1t) % 100);
 			initial = 1;
 		}
@@ -863,50 +889,3 @@ void vpp_dbg_back_trace(void)
 }
 EXPORT_SYMBOL(vpp_dbg_back_trace);
 #endif
-
-void vpp_reg_dump(unsigned int addr, int size)
-{
-	int i;
-
-	for (i = 0; i < size; i += 16) {
-		DPRINT("0x%8x : 0x%08x 0x%08x 0x%08x 0x%08x\n",
-			addr + i, inl(addr + i),
-			inl(addr + i + 4),
-			inl(addr + i + 8),
-			inl(addr + i + 12));
-	}
-}
-
-unsigned int *vpp_backup_reg(unsigned int addr, unsigned int size)
-{
-	unsigned int *ptr;
-	int i;
-
-	size += 4;
-	ptr = kmalloc(size, GFP_KERNEL);
-	if (ptr == 0) {
-		DPRINT("[VPP] *E* malloc backup fail\n");
-		return 0;
-	}
-
-	for (i = 0; i < size; i += 4)
-		ptr[i / 4] = inl(addr + i);
-	return ptr;
-}
-
-int vpp_restore_reg(unsigned int addr, unsigned int size,
-					unsigned int *reg_ptr)
-{
-	int i;
-
-	if (reg_ptr == NULL)
-		return 0;
-
-	size += 4;
-	for (i = 0; i < size; i += 4)
-		outl(reg_ptr[i / 4], addr + i);
-	kfree(reg_ptr);
-	reg_ptr = 0;
-	return 0;
-}
-

@@ -58,7 +58,7 @@ static DECLARE_WAIT_QUEUE_HEAD(wmt_sync_wait);
 static struct class *wmt_sync_class;
 static int wmt_sync_major;
 unsigned int wmt_vsync_flag;
-enum vpp_int_t wmt_sync_type;
+
 int wmt_sync_set_vsync(void *arg)
 {
 	wmt_vsync_flag++;
@@ -72,20 +72,21 @@ static int wmt_sync_open(
 	struct file *filp
 )
 {
-	struct govrh_mod_t *govr;
+	int ret = 0;
+	vpp_int_t type;
 
 	DBG_MSG("\n");
 
 	down(&wmt_sync_sem);
-
-	/* non-dual use govrh2, because HDMI should slow down */
-	govr = vout_info_get_govr((g_vpp.virtual_display) ? 1 : 0);
-	wmt_sync_type = (govr->mod == VPP_MOD_GOVRH) ?
+	if (g_vpp.dual_display) {
+	type = (vout_info[0].govr_mod == VPP_MOD_GOVRH) ?
 			VPP_INT_GOVRH_VBIS : VPP_INT_GOVRH2_VBIS;
-	vpp_irqproc_work(wmt_sync_type, wmt_sync_set_vsync, 0, 0, 0);
-
+	} else {
+		type = VPP_INT_GOVRH2_VBIS; /* HDMI should slow down */
+	}
+	vpp_irqproc_work(type, wmt_sync_set_vsync, 0, 0, 0);
 	up(&wmt_sync_sem);
-	return 0;
+	return ret;
 } /* End of wmt_sync_open() */
 
 static int wmt_sync_release(
@@ -93,12 +94,17 @@ static int wmt_sync_release(
 	struct file *filp
 )
 {
+	int ret = 0;
+	vpp_int_t type;
+
 	DBG_MSG("\n");
 
 	down(&wmt_sync_sem);
-	vpp_irqproc_del_work(wmt_sync_type, wmt_sync_set_vsync);
+	type = (vout_info[0].govr_mod == VPP_MOD_GOVRH) ?
+			VPP_INT_GOVRH_VBIS : VPP_INT_GOVRH2_VBIS;
+	vpp_irqproc_del_work(type, wmt_sync_set_vsync);
 	up(&wmt_sync_sem);
-	return 0;
+	return ret;
 } /* End of wmt_sync_release() */
 
 static long wmt_sync_ioctl(struct file *filp, unsigned int cmd,
@@ -156,7 +162,7 @@ static ssize_t wmt_sync_read(
 	retval = wait_event_interruptible(wmt_sync_wait, data);
 	if (retval == 0)
 		retval = put_user(data, (unsigned int __user *)buf);
-read_end:
+read_end:	
 	up(&wmt_sync_sem);
 	return retval;
 } /* wmt_sync_read */

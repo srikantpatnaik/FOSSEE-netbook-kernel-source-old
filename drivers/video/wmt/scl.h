@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/scl.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,25 +28,24 @@
 
 #define SCL_COMPLETE_INT VPP_INT_SCL_PVBI
 
-struct scl_mod_t {
+typedef struct {
 	VPP_MOD_BASE;
 
 	int (*scale)(vdo_framebuf_t *src, vdo_framebuf_t *dst);
 	int (*scale_finish)(void);
 
-	enum vpp_scale_mode_t scale_mode;
-	enum vpp_scale_mode_t scale_sync;
+	vpp_scale_mode_t scale_mode;
+	vpp_scale_mode_t scale_sync;
 	int scale_complete;
-	enum vpp_filter_mode_t filter_mode;
-	int abgr_mode;
+	vpp_filter_mode_t filter_mode;
 
-	struct vpp_dbg_timer_t overlap_timer;
-	struct vpp_dbg_timer_t scale_timer;
-};
+	vpp_dbg_timer_t overlap_timer;
+	vpp_dbg_timer_t scale_timer;
+} scl_mod_t;
 
-struct sclw_mod_t {
+typedef struct {
 	VPP_MOD_BASE;
-};
+} sclw_mod_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,8 +57,8 @@ extern "C" {
 #define EXTERN   extern
 #endif
 
-EXTERN struct scl_mod_t *p_scl;
-EXTERN struct sclw_mod_t *p_sclw;
+EXTERN scl_mod_t *p_scl;
+EXTERN sclw_mod_t *p_sclw;
 
 #ifdef WMT_FTBLK_SCL
 
@@ -70,9 +69,9 @@ EXTERN void sclw_set_framebuffer(vdo_framebuf_t *outbuf);
 EXTERN void scl_set_enable(vpp_flag_t enable);
 EXTERN void scl_set_reg_update(vpp_flag_t enable);
 EXTERN void scl_set_reg_level(vpp_reglevel_t level);
-EXTERN void scl_set_int_enable(vpp_flag_t enable, enum vpp_int_t int_bit);
-EXTERN enum vpp_int_err_t scl_get_int_status(void);
-EXTERN void scl_clean_int_status(enum vpp_int_err_t int_sts);
+EXTERN void scl_set_int_enable(vpp_flag_t enable, vpp_int_t int_bit);
+EXTERN vpp_int_err_t scl_get_int_status(void);
+EXTERN void scl_clean_int_status(vpp_int_err_t int_sts);
 EXTERN void scl_set_csc_mode(vpp_csc_t mode);
 EXTERN void scl_set_scale_enable(vpp_flag_t vscl_enable,
 	vpp_flag_t hscl_enable);
@@ -118,7 +117,6 @@ EXTERN void scl_set_frame_filter_enable(int enable);
 EXTERN int scl_set_scale_overlap(vdo_framebuf_t *s,
 	vdo_framebuf_t *in, vdo_framebuf_t *out);
 EXTERN void scl_set_overlap(vpp_overlap_t *p);
-EXTERN int scl_mod_init(void);
 
 #ifdef __cplusplus
 }

@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/scl.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,9 +28,6 @@
 
 #include "scl.h"
 
-HW_REG struct scl_base1_regs *scl_regs1 = (void *) SCL_BASE_ADDR;
-HW_REG struct scl_base2_regs *scl_regs2 = (void *) SCL_BASE2_ADDR;
-
 #ifdef WMT_FTBLK_SCL
 void scl_reg_dump(void)
 {
@@ -41,130 +38,144 @@ void scl_reg_dump(void)
 		REG_SCL_BASE1_END - REG_SCL_BASE1_BEGIN);
 	vpp_reg_dump(REG_SCL_BASE2_BEGIN,
 		REG_SCL_BASE2_END - REG_SCL_BASE2_BEGIN);
-
 	DPRINT("---------- SCL scale ----------\n");
-	DPRINT("scale enable %d\n", scl_regs1->en.b.alu_enable);
+	DPRINT("scale enable %d\n", vppif_reg32_read(SCL_ALU_ENABLE));
 	DPRINT("mode bilinear(H %d,V %d),recursive(H %d,V %d)\n",
-		scl_regs1->true_bilinear.b.h, scl_regs1->true_bilinear.b.v,
-		scl_regs2->recursive_mode.b.h, scl_regs2->recursive_mode.b.v);
+		vppif_reg32_read(SCL_BILINEAR_H),
+		vppif_reg32_read(SCL_BILINEAR_V),
+		vppif_reg32_read(SCL_RECURSIVE_H),
+		vppif_reg32_read(SCL_RECURSIVE_V));
 	DPRINT("src(%d,%d),dst(%d,%d)\n",
-		scl_regs1->r_h_size.b.pix_w, scl_regs1->vxwidth.b.vxwidth,
-		scl_regs1->hscale1.b.thr, scl_regs1->vscale1.b.thr);
+		vppif_reg32_read(SCLR_YPXLWID),
+		vppif_reg32_read(SCL_VXWIDTH),
+		vppif_reg32_read(SCL_H_THR),
+		vppif_reg32_read(SCL_V_THR));
 	DPRINT("scale width H %d,V %d\n",
-		scl_regs1->hxwidth.b.hxwidth, scl_regs1->vxwidth.b.vxwidth);
+		vppif_reg32_read(SCL_HXWIDTH),
+		vppif_reg32_read(SCL_VXWIDTH));
 	DPRINT("H scale up %d,V scale up %d\n",
-		scl_regs1->sclup_en.b.h, scl_regs1->sclup_en.b.v);
+		vppif_reg32_read(SCL_HSCLUP_ENABLE),
+		vppif_reg32_read(SCL_VSCLUP_ENABLE));
 	DPRINT("H sub step %d,thr %d,step %d,sub step cnt %d,i step cnt %d\n",
-		scl_regs1->hscale1.b.substep, scl_regs1->hscale1.b.thr,
-		scl_regs1->hscale2.b.step, scl_regs1->hscale2.b.substepcnt,
-		scl_regs1->hscale3.b.stepcnt);
+		vppif_reg32_read(SCL_H_SUBSTEP),
+		vppif_reg32_read(SCL_H_THR),
+		vppif_reg32_read(SCL_H_STEP),
+		vppif_reg32_read(SCL_H_I_SUBSTEPCNT),
+		vppif_reg32_read(SCL_H_I_STEPCNT));
 	DPRINT("V sub step %d,thr %d,step %d,sub step cnt %d,i step cnt %d\n",
-		scl_regs1->vscale1.b.substep, scl_regs1->vscale1.b.thr,
-		scl_regs1->vscale2.b.step, scl_regs1->vscale2.b.substepcnt,
-		scl_regs1->vscale3.b.stepcnt);
+		vppif_reg32_read(SCL_V_SUBSTEP),
+		vppif_reg32_read(SCL_V_THR),
+		vppif_reg32_read(SCL_V_STEP),
+		vppif_reg32_read(SCL_V_I_SUBSTEPCNT),
+		vppif_reg32_read(SCL_V_I_STEPCNT));
 
 	DPRINT("---------- SCL filter ----------\n");
 	DPRINT("DEBLOCK %d,boundary 1st 0x%x,2nd 0x%x\n,",
-		scl_regs2->field_mode.b.deblock,
-		scl_regs2->dblk_threshold.b.layer1_boundary,
-		scl_regs2->dblk_threshold.b.layer2_boundary);
+		vppif_reg32_read(SCL_DEBLOCK_ENABLE),
+		vppif_reg32_read(SCL_1ST_LAYER_BOUNDARY),
+		vppif_reg32_read(SCL_2ND_LAYER_BOUNDARY));
 	DPRINT("FIELD DEFLICKER %d,up %s down,thr Y %d,C %d\n",
-		scl_regs2->field_mode.b.field_deflicker,
-		(scl_regs2->field_mode.b.field_deflicker) ? "&" : "or",
-		scl_regs2->field_flicker.b.y_thd,
-		scl_regs2->field_flicker.b.c_thd);
+		vppif_reg32_read(SCL_FIELD_DEFLICKER),
+		vppif_reg32_read(SCL_FIELD_DEFLICKER) ? "&" : "or",
+		vppif_reg32_read(SCL_FIELD_FILTER_Y_THD),
+		vppif_reg32_read(SCL_FIELD_FILTER_C_THD));
 	DPRINT("FRAME DEFLICKER %d,%s,2^%d,scene chg %d\n",
-		scl_regs2->field_mode.b.frame_deflicker,
-		(scl_regs2->frame_flicker.b.rgb) ? "RGB" : "Y",
-		scl_regs2->frame_flicker.b.sampler,
-		scl_regs2->frame_flicker.b.scene_chg_thd);
+		vppif_reg32_read(SCL_FRAME_DEFLICKER),
+		vppif_reg32_read(SCL_FRAME_FILTER_RGB) ? "RGB" : "Y",
+		vppif_reg32_read(SCL_FRAME_FILTER_SAMPLER),
+		vppif_reg32_read(SCL_FR_FILTER_SCENE_CHG_THD));
 	DPRINT("CSC enable %d,CSC clamp %d\n",
-		scl_regs2->csc_ctl.b.enable,
-		scl_regs2->csc_ctl.b.clamp_enable);
+		vppif_reg32_read(SCL_CSC_ENABLE),
+		vppif_reg32_read(SCL_CSC_CLAMP_ENABLE));
 	DPRINT("---------- SCL TG ----------\n");
 	DPRINT("TG source : %s\n",
-		(scl_regs1->tg_govw.b.enable) ? "GOVW" : "SCL");
+		(vppif_reg32_read(SCL_TG_GOVWTG_ENABLE)) ? "GOVW" : "SCL");
 	DPRINT("TG enable %d, wait ready enable %d\n",
-		scl_regs1->tg_ctl.b.enable,
-		scl_regs1->tg_ctl.b.watchdog_enable);
+		vppif_reg32_read(SCL_TG_ENABLE),
+		vppif_reg32_read(SCL_TG_WATCHDOG_ENABLE));
 	DPRINT("clk %d,Read cyc %d,1T %d\n",
 		vpp_get_base_clock(VPP_MOD_SCL),
-		scl_regs1->tg_ctl.b.rdcyc, scl_regs2->readcyc_1t.b.rdcyc_1t);
+		vppif_reg32_read(SCL_TG_RDCYC),
+		vppif_reg32_read(SCL_READCYC_1T));
 	DPRINT("H total %d, beg %d, end %d\n",
-		scl_regs1->tg_total.b.h_allpixel,
-		scl_regs1->tg_h_active.b.h_actbg,
-		scl_regs1->tg_h_active.b.h_actend);
+		vppif_reg32_read(SCL_TG_H_ALLPIXEL),
+		vppif_reg32_read(SCL_TG_H_ACTBG),
+		vppif_reg32_read(SCL_TG_H_ACTEND));
 	DPRINT("V total %d, beg %d, end %d\n",
-		scl_regs1->tg_total.b.v_allline,
-		scl_regs1->tg_v_active.b.v_actbg,
-		scl_regs1->tg_v_active.b.v_actend);
+		vppif_reg32_read(SCL_TG_V_ALLLINE),
+		vppif_reg32_read(SCL_TG_V_ACTBG),
+		vppif_reg32_read(SCL_TG_V_ACTEND));
 	DPRINT("VBIE %d,PVBI %d\n",
-		scl_regs1->tg_vbi.b.vbie, scl_regs1->tg_vbi.b.pvbi);
+		vppif_reg32_read(SCL_TG_VBIE),
+		vppif_reg32_read(SCL_TG_PVBI));
 	DPRINT("Watch dog 0x%x\n",
-		scl_regs1->tg_watchdog);
+		vppif_reg32_read(SCL_TG_WATCHDOG_VALUE));
 	DPRINT("---------- SCLR FB ----------\n");
 	DPRINT("SCLR MIF enable %d\n",
-		scl_regs1->r_ctl.b.mif_enable);
+		vppif_reg32_read(SCLR_MIF_ENABLE));
 	DPRINT("color format %s\n", vpp_colfmt_str[sclr_get_color_format()]);
 	DPRINT("color bar enable %d,mode %d,inv %d\n",
-		scl_regs1->r_ctl.b.colorbar_enable,
-		scl_regs1->r_ctl.b.colorbar_mode,
-		scl_regs1->r_ctl.b.colorbar_inv);
+		vppif_reg32_read(SCLR_COLBAR_ENABLE),
+		vppif_reg32_read(SCLR_COLBAR_MODE),
+		vppif_reg32_read(SCLR_COLBAR_INVERSION));
 	DPRINT("sourc mode : %s,H264 %d\n",
-		(scl_regs1->r_ctl.b.field) ? "field" : "frame",
-		scl_regs1->r_ctl.b.h264);
+		(vppif_reg32_read(SCLR_TAR_DISP_FMT)) ? "field" : "frame",
+		vppif_reg32_read(SCLR_MEDIAFMT_H264));
 	DPRINT("Y addr 0x%x, C addr 0x%x\n",
-		scl_regs1->r_ysa, scl_regs1->r_csa);
+		vppif_reg32_in(REG_SCLR_YSA),
+		vppif_reg32_in(REG_SCLR_CSA));
 	DPRINT("width %d, fb width %d\n",
-		scl_regs1->r_h_size.b.pix_w, scl_regs1->r_h_size.b.fb_w);
+		vppif_reg32_read(SCLR_YPXLWID),
+		vppif_reg32_read(SCLR_YBUFWID));
 	DPRINT("H crop %d, V crop %d\n",
-		scl_regs1->r_crop.b.hcrop, scl_regs1->r_crop.b.vcrop);
+		vppif_reg32_read(SCLR_HCROP),
+		vppif_reg32_read(SCLR_VCROP));
 	DPRINT("---------- SCLW FB ----------\n");
-	DPRINT("SCLW MIF enable %d\n", scl_regs1->w_ctl.b.mif_enable);
+	DPRINT("SCLW MIF enable %d\n", vppif_reg32_read(SCLW_MIF_ENABLE));
 	DPRINT("color format %s\n", vpp_colfmt_str[sclw_get_color_format()]);
 	DPRINT("Y addr 0x%x, C addr 0x%x\n",
-		scl_regs1->w_ysa, scl_regs1->w_csa);
+		vppif_reg32_in(REG_SCLW_YSA), vppif_reg32_in(REG_SCLW_CSA));
 	DPRINT("Y width %d, fb width %d\n",
-		scl_regs1->w_y_time.b.pxl_w, scl_regs1->w_y_time.b.fb_w);
+		vppif_reg32_read(SCLW_YPXLWID), vppif_reg32_read(SCLW_YBUFWID));
 	DPRINT("C width %d, fb width %d\n",
-		scl_regs1->w_c_time.b.pxl_w, scl_regs1->w_c_time.b.fb_w);
+		vppif_reg32_read(SCLW_CPXLWID), vppif_reg32_read(SCLW_CBUFWID));
 	DPRINT("Y err %d, C err %d\n",
-		scl_regs1->w_ff_ctl.b.mif_y_err,
-		scl_regs1->w_ff_ctl.b.mif_c_err);
+		vppif_reg32_read(SCLW_INTSTS_MIFYERR),
+		vppif_reg32_read(SCLW_INTSTS_MIFCERR));
 	DPRINT("---------- SCLR2 FB ----------\n");
-	DPRINT("MIF enable %d\n", scl_regs1->r2_ctl.b.mif_en);
+	DPRINT("MIF enable %d\n", vppif_reg32_read(SCL_R2_MIF_EN));
 	DPRINT("color format %s\n", vpp_colfmt_str[scl_R2_get_color_format()]);
 	DPRINT("color bar enable %d,mode %d,inv %d\n",
-		scl_regs1->r2_ctl.b.color_en,
-		scl_regs1->r2_ctl.b.color_wide,
-		scl_regs1->r2_ctl.b.color_inv);
+		vppif_reg32_read(SCL_R2_COLOR_EN),
+		vppif_reg32_read(SCL_R2_COLOR_EN),
+		vppif_reg32_read(SCL_R2_COLOR_INV));
 	DPRINT("sourc mode : %s,H264 %d\n",
-		(scl_regs1->r2_ctl.b.iofmt) ? "field" : "frame",
-		scl_regs1->r2_ctl.b.h264_fmt);
+		(vppif_reg32_read(SCL_R2_IOFMT)) ? "field" : "frame",
+		vppif_reg32_read(SCL_R2_H264_FMT));
 	DPRINT("Y addr 0x%x, C addr 0x%x\n",
-		scl_regs1->r2_ysa, scl_regs1->r2_csa);
+		vppif_reg32_in(REG_SCLR2_YSA), vppif_reg32_in(REG_SCLR2_CSA));
 	DPRINT("width %d, fb width %d\n",
-		scl_regs1->r2_h_size.b.lnsize, scl_regs1->r2_h_size.b.fbw);
+		vppif_reg32_read(SCL_R2_LNSIZE), vppif_reg32_read(SCL_R2_FBW));
 	DPRINT("H crop %d, V crop %d\n",
-		scl_regs1->r2_crop.b.hcrop, scl_regs1->r2_crop.b.vcrop);
+		vppif_reg32_read(SCL_R2_HCROP), vppif_reg32_read(SCL_R2_VCROP));
 	DPRINT("---------- ALPHA ----------\n");
 	DPRINT("src alpha %d,dst alpha %d,swap %d\n",
-		scl_regs1->alpha_md.b.src,
-		scl_regs1->alpha_md.b.dst,
-		scl_regs1->alpha_md.b.swap);
+		vppif_reg32_read(SCL_ALPHA_SRC),
+		vppif_reg32_read(SCL_ALPHA_DST),
+		vppif_reg32_read(SCL_ALPHA_SWAP));
 	DPRINT("src fix 0x%x,dst fix 0x%x\n",
-		scl_regs1->alpha_fxd.b.src_fixed,
-		scl_regs1->alpha_fxd.b.dst_fixed);
+		vppif_reg32_read(SCL_ALPHA_SRC_FIXED),
+		vppif_reg32_read(SCL_ALPHA_DST_FIXED));
 	DPRINT("---------- ColorKey ----------\n");
-	DPRINT("enable %d\n", scl_regs1->alpha_colorkey.b.enable);
+	DPRINT("enable %d\n", vppif_reg32_read(SCL_ALPHA_COLORKEY_ENABLE));
 	DPRINT("from %s,comp %d,mode %d\n",
-		(scl_regs1->alpha_colorkey.b.from) ? "mif2" : "mif1",
-		scl_regs1->alpha_colorkey.b.comp,
-		scl_regs1->alpha_colorkey.b.mode);
+		(vppif_reg32_read(SCL_ALPHA_COLORKEY_FROM)) ? "mif2" : "mif1",
+		vppif_reg32_read(SCL_ALPHA_COLORKEY_COMP),
+		vppif_reg32_read(SCL_ALPHA_COLORKEY_MODE));
 	DPRINT("R 0x%x,G 0x%x,B 0x%x\n",
-		scl_regs1->alpha_colorkey_rgb.b.r,
-		scl_regs1->alpha_colorkey_rgb.b.g,
-		scl_regs1->alpha_colorkey_rgb.b.b);
+		vppif_reg32_read(SCL_ALPHA_COLORKEY_R),
+		vppif_reg32_read(SCL_ALPHA_COLORKEY_G),
+		vppif_reg32_read(SCL_ALPHA_COLORKEY_B));
 	DPRINT("---------- sw status ----------\n");
 	DPRINT("complete %d\n", p_scl->scale_complete);
 
@@ -173,74 +184,83 @@ void scl_reg_dump(void)
 
 void scl_set_enable(vpp_flag_t enable)
 {
-	scl_regs1->en.b.alu_enable = enable;
+	vppif_reg32_write(SCL_ALU_ENABLE, enable);
 }
 
 void scl_set_reg_update(vpp_flag_t enable)
 {
-	scl_regs1->upd.b.reg_update = enable;
+	vppif_reg32_write(SCL_REG_UPDATE, enable);
 }
 
 void scl_set_reg_level(vpp_reglevel_t level)
 {
-	scl_regs1->sel.b.reg_level = level;
+	switch (level) {
+	case VPP_REG_LEVEL_1:
+		vppif_reg32_write(SCL_REG_LEVEL, 0x0);
+		break;
+	case VPP_REG_LEVEL_2:
+		vppif_reg32_write(SCL_REG_LEVEL, 0x1);
+		break;
+	default:
+		DBGMSG("*E* check the parameter.\n");
+		return;
+	}
 }
 
-void scl_set_int_enable(vpp_flag_t enable, enum vpp_int_t int_bit)
+void scl_set_int_enable(vpp_flag_t enable, vpp_int_t int_bit)
 {
 	/* clean status first before enable/disable interrupt */
 	scl_clean_int_status(int_bit);
 
 	if (int_bit & VPP_INT_ERR_SCL_TG)
-		scl_regs1->w_int_en.b.tg_err = enable;
+		vppif_reg32_write(SCLW_INT_TGERR_ENABLE, enable);
 	if (int_bit & VPP_INT_ERR_SCLR1_MIF)
-		scl_regs1->w_int_en.b.r1_mif_enable = enable;
+		vppif_reg32_write(SCLW_INT_R1MIF_ENABLE, enable);
 	if (int_bit & VPP_INT_ERR_SCLR2_MIF)
-		scl_regs1->w_int_en.b.r2_mif_enable = enable;
+		vppif_reg32_write(SCLW_INT_R2MIF_ENABLE, enable);
 	if (int_bit & VPP_INT_ERR_SCLW_MIFRGB)
-		scl_regs1->w_int_en.b.mif_rgb_err = enable;
+		vppif_reg32_write(SCLW_INT_WMIFRGB_ENABLE, enable);
 	if (int_bit & VPP_INT_ERR_SCLW_MIFY)
-		scl_regs1->w_int_en.b.mif_y_err = enable;
+		vppif_reg32_write(SCLW_INT_WMIFYERR_ENABLE, enable);
 	if (int_bit & VPP_INT_ERR_SCLW_MIFC)
-		scl_regs1->w_int_en.b.mif_c_err = enable;
+		vppif_reg32_write(SCLW_INT_WMIFCERR_ENABLE, enable);
 }
 
-enum vpp_int_err_t scl_get_int_status(void)
+vpp_int_err_t scl_get_int_status(void)
 {
-	enum vpp_int_err_t int_sts;
+	vpp_int_err_t int_sts;
 
 	int_sts = 0;
-	if (scl_regs1->tg_sts.b.tgerr)
+	if (vppif_reg32_read(SCL_INTSTS_TGERR))
 		int_sts |= VPP_INT_ERR_SCL_TG;
-	if (scl_regs1->r_fifo_ctl.b.r1_mif_err)
+	if (vppif_reg32_read(SCLR_INTSTS_R1MIFERR))
 		int_sts |= VPP_INT_ERR_SCLR1_MIF;
-	if (scl_regs1->r_fifo_ctl.b.r2_mif_err)
+	if (vppif_reg32_read(SCLR_INTSTS_R2MIFERR))
 		int_sts |= VPP_INT_ERR_SCLR2_MIF;
-	if (scl_regs1->w_ff_ctl.b.mif_rgb_err)
+	if (vppif_reg32_read(SCLW_INTSTS_MIFRGBERR))
 		int_sts |= VPP_INT_ERR_SCLW_MIFRGB;
-	if (scl_regs1->w_ff_ctl.b.mif_y_err)
+	if (vppif_reg32_read(SCLW_INTSTS_MIFYERR))
 		int_sts |= VPP_INT_ERR_SCLW_MIFY;
-	if (scl_regs1->w_ff_ctl.b.mif_c_err)
+	if (vppif_reg32_read(SCLW_INTSTS_MIFCERR))
 		int_sts |= VPP_INT_ERR_SCLW_MIFC;
+
 	return int_sts;
 }
 
-void scl_clean_int_status(enum vpp_int_err_t int_sts)
+void scl_clean_int_status(vpp_int_err_t int_sts)
 {
 	if (int_sts & VPP_INT_ERR_SCL_TG)
-		scl_regs1->tg_sts.val = BIT0;
+		vppif_reg32_out(REG_SCL_TG_STS + 0x0, BIT0);
 	if (int_sts & VPP_INT_ERR_SCLR1_MIF)
-		scl_regs1->r_fifo_ctl.val =
-			(scl_regs1->r_fifo_ctl.val & ~0x300) | BIT8;
+		vppif_reg8_out(REG_SCLR_FIFO_CTL + 0x1, BIT0);
 	if (int_sts & VPP_INT_ERR_SCLR2_MIF)
-		scl_regs1->r_fifo_ctl.val =
-			(scl_regs1->r_fifo_ctl.val & ~0x300) | BIT9;
+		vppif_reg8_out(REG_SCLR_FIFO_CTL + 0x1, BIT1);
 	if (int_sts & VPP_INT_ERR_SCLW_MIFRGB)
-		scl_regs1->w_ff_ctl.val = BIT16;
+		vppif_reg32_out(REG_SCLW_FF_CTL, BIT16);
 	if (int_sts & VPP_INT_ERR_SCLW_MIFY)
-		scl_regs1->w_ff_ctl.val = BIT8;
+		vppif_reg32_out(REG_SCLW_FF_CTL, BIT8);
 	if (int_sts & VPP_INT_ERR_SCLW_MIFC)
-		scl_regs1->w_ff_ctl.val = BIT0;
+		vppif_reg32_out(REG_SCLW_FF_CTL, BIT0);
 }
 
 void scl_set_csc_mode(vpp_csc_t mode)
@@ -250,42 +270,25 @@ void scl_set_csc_mode(vpp_csc_t mode)
 	src_fmt = sclr_get_color_format();
 	dst_fmt = sclw_get_color_format();
 	mode = vpp_check_csc_mode(mode, src_fmt, dst_fmt, 0);
-	if (p_scl->abgr_mode) {
-		unsigned int parm[5];
-
-		parm[0] = (vpp_csc_parm[mode][1] & 0xFFFF) |
-			(vpp_csc_parm[mode][0] & 0xFFFF0000); /* C3,C2 */
-		parm[1] = (vpp_csc_parm[mode][0] & 0xFFFF) |
-			(vpp_csc_parm[mode][2] & 0xFFFF0000); /* C1,C6 */
-		parm[2] = (vpp_csc_parm[mode][2] & 0xFFFF) |
-			(vpp_csc_parm[mode][1] & 0xFFFF0000); /* C5,C4 */
-		parm[3] = (vpp_csc_parm[mode][4] & 0xFFFF) |
-			(vpp_csc_parm[mode][3] & 0xFFFF0000); /* C9,C8 */
-		parm[4] = (vpp_csc_parm[mode][3] & 0xFFFF) |
-			(vpp_csc_parm[mode][4] & 0xFFFF0000); /* C7,I */
-
-		scl_regs2->csc1 = parm[0];
-		scl_regs2->csc2 = parm[1];
-		scl_regs2->csc3 = parm[2];
-		scl_regs2->csc4 = parm[3];
-		scl_regs2->csc5 = parm[4];
-	} else {
-		scl_regs2->csc1 = vpp_csc_parm[mode][0];
-		scl_regs2->csc2 = vpp_csc_parm[mode][1];
-		scl_regs2->csc3 = vpp_csc_parm[mode][2];
-		scl_regs2->csc4 = vpp_csc_parm[mode][3];
-		scl_regs2->csc5 = vpp_csc_parm[mode][4];
+	if (mode >= VPP_CSC_MAX)
+		vppif_reg32_write(SCL_CSC_ENABLE, VPP_FLAG_DISABLE);
+	else {
+		vppif_reg32_out(REG_SCL_CSC1, vpp_csc_parm[mode][0]);
+		vppif_reg32_out(REG_SCL_CSC2, vpp_csc_parm[mode][1]);
+		vppif_reg32_out(REG_SCL_CSC3, vpp_csc_parm[mode][2]);
+		vppif_reg32_out(REG_SCL_CSC4, vpp_csc_parm[mode][3]);
+		vppif_reg32_out(REG_SCL_CSC5, vpp_csc_parm[mode][4]);
+		vppif_reg32_out(REG_SCL_CSC6, vpp_csc_parm[mode][5]);
+		vppif_reg32_out(REG_SCL_CSC_CTL, vpp_csc_parm[mode][6]);
+		vppif_reg32_write(SCL_CSC_ENABLE, VPP_FLAG_ENABLE);
 	}
-	scl_regs2->csc6 = vpp_csc_parm[mode][5];
-	scl_regs2->csc_ctl.val = vpp_csc_parm[mode][6];
-	scl_regs2->csc_ctl.b.enable = (mode >= VPP_CSC_MAX) ? 0 : 1;
 }
 
 void scl_set_scale_enable(vpp_flag_t vscl_enable, vpp_flag_t hscl_enable)
 {
 	DBGMSG("V %d,H %d\n", vscl_enable, hscl_enable);
-	scl_regs1->sclup_en.b.v = vscl_enable;
-	scl_regs1->sclup_en.b.h = hscl_enable;
+	vppif_reg32_write(SCL_VSCLUP_ENABLE, vscl_enable);
+	vppif_reg32_write(SCL_HSCLUP_ENABLE, hscl_enable);
 }
 
 void scl_set_V_scale(int A, int B) /* A dst,B src */
@@ -307,12 +310,14 @@ void scl_set_V_scale(int A, int B) /* A dst,B src */
 	DBG_DETAIL("V step %d,sub step %d, div2 %d\r\n",
 				V_STEP, V_SUB_STEP, V_THR_DIV2);
 
-	scl_regs1->vxwidth.b.dst_vxwidth = (A > B) ? A : B;
-	scl_regs1->vxwidth.b.vxwidth = B;
-	scl_regs1->vscale2.b.step = V_STEP;
-	scl_regs1->vscale1.b.substep = V_SUB_STEP;
-	scl_regs1->vscale1.b.thr = V_THR_DIV2;
-	scl_regs1->vscale2.b.substepcnt = 0;
+#ifdef SCL_DST_VXWIDTH
+	vppif_reg32_write(SCL_DST_VXWIDTH, (A > B) ? A : B);
+#endif
+	vppif_reg32_write(SCL_VXWIDTH, B);
+	vppif_reg32_write(SCL_V_STEP, V_STEP);
+	vppif_reg32_write(SCL_V_SUBSTEP, V_SUB_STEP);
+	vppif_reg32_write(SCL_V_THR, V_THR_DIV2);
+	vppif_reg32_write(SCL_V_I_SUBSTEPCNT, 0);
 }
 
 void scl_set_H_scale(int A, int B) /* A dst,B src */
@@ -332,11 +337,12 @@ void scl_set_H_scale(int A, int B) /* A dst,B src */
 	H_THR_DIV2 = A;
 	DBG_DETAIL("H step %d,sub step %d, div2 %d\r\n",
 				H_STEP, H_SUB_STEP, H_THR_DIV2);
-	scl_regs1->hxwidth.b.hxwidth = ((A > B) ? A : B);
-	scl_regs1->hscale2.b.step = H_STEP;
-	scl_regs1->hscale1.b.substep = H_SUB_STEP;
-	scl_regs1->hscale1.b.thr = H_THR_DIV2;
-	scl_regs1->hscale2.b.substepcnt = 0;
+
+	vppif_reg32_write(SCL_HXWIDTH, ((A > B) ? A : B));
+	vppif_reg32_write(SCL_H_STEP, H_STEP);
+	vppif_reg32_write(SCL_H_SUBSTEP, H_SUB_STEP);
+	vppif_reg32_write(SCL_H_THR, H_THR_DIV2);
+	vppif_reg32_write(SCL_H_I_SUBSTEPCNT, 0);
 }
 
 void scl_set_crop(int offset_x, int offset_y)
@@ -344,15 +350,16 @@ void scl_set_crop(int offset_x, int offset_y)
 	/* offset_x &= VPU_CROP_ALIGN_MASK; */ /* ~0x7 */
 	offset_x &= ~0xf;
 
-	scl_regs1->hscale3.b.stepcnt = offset_x * 16;
-	scl_regs1->vscale3.b.stepcnt = offset_y * 16;
+	vppif_reg32_write(SCL_H_I_STEPCNT, offset_x * 16);
+	vppif_reg32_write(SCL_V_I_STEPCNT, offset_y * 16);
+	/* vppif_reg32_write(VPU_SCA_THR, 0xFF); */
 	DBGMSG("[VPU] crop - x : 0x%x, y : 0x%x \r\n",
 				offset_x * 16, offset_y * 16);
 }
 
 void scl_set_tg_enable(vpp_flag_t enable)
 {
-	scl_regs1->tg_ctl.b.enable = enable;
+	vppif_reg32_write(SCL_TG_ENABLE, enable);
 }
 
 unsigned int scl_set_clock(unsigned int pixel_clock)
@@ -373,16 +380,17 @@ void scl_set_timing(vpp_clock_t *timing, unsigned int pixel_clock)
 	timing->read_cycle = (timing->read_cycle > 255) ?
 		0xFF : timing->read_cycle;
 #endif
-	scl_regs1->tg_ctl.b.rdcyc = timing->read_cycle;
-	scl_regs2->readcyc_1t.b.rdcyc_1t = (timing->read_cycle) ? 0 : 1;
-	scl_regs1->tg_total.b.h_allpixel = timing->total_pixel_of_line;
-	scl_regs1->tg_h_active.b.h_actbg = timing->begin_pixel_of_active;
-	scl_regs1->tg_h_active.b.h_actend = timing->end_pixel_of_active;
-	scl_regs1->tg_total.b.v_allline = timing->total_line_of_frame;
-	scl_regs1->tg_v_active.b.v_actbg = timing->begin_line_of_active;
-	scl_regs1->tg_v_active.b.v_actend = timing->end_line_of_active;
-	scl_regs1->tg_vbi.b.vbie = timing->line_number_between_VBIS_VBIE;
-	scl_regs1->tg_vbi.b.pvbi = timing->line_number_between_PVBI_VBIS;
+	vppif_reg32_write(SCL_TG_RDCYC, timing->read_cycle);
+	vppif_reg32_write(SCL_READCYC_1T, (timing->read_cycle) ? 0 : 1);
+	vppif_reg32_write(SCL_TG_H_ALLPIXEL, timing->total_pixel_of_line);
+	vppif_reg32_write(SCL_TG_H_ACTBG, timing->begin_pixel_of_active);
+	vppif_reg32_write(SCL_TG_H_ACTEND, timing->end_pixel_of_active);
+	vppif_reg32_write(SCL_TG_V_ALLLINE, timing->total_line_of_frame);
+	vppif_reg32_write(SCL_TG_V_ACTBG, timing->begin_line_of_active);
+	vppif_reg32_write(SCL_TG_V_ACTEND, timing->end_line_of_active);
+	vppif_reg32_write(SCL_TG_VBIE, timing->line_number_between_VBIS_VBIE);
+	vppif_reg32_write(SCL_TG_PVBI, timing->line_number_between_PVBI_VBIS);
+
 #ifdef DEBUG_DETAIL
 	vpp_show_timing("scl set timing", 0, timing);
 #endif
@@ -390,87 +398,98 @@ void scl_set_timing(vpp_clock_t *timing, unsigned int pixel_clock)
 
 void scl_get_timing(vpp_clock_t *p_timing)
 {
-	p_timing->read_cycle = scl_regs1->tg_ctl.b.rdcyc;
-	p_timing->total_pixel_of_line = scl_regs1->tg_total.b.h_allpixel;
-	p_timing->begin_pixel_of_active = scl_regs1->tg_h_active.b.h_actbg;
-	p_timing->end_pixel_of_active = scl_regs1->tg_h_active.b.h_actend;
-	p_timing->total_line_of_frame = scl_regs1->tg_total.b.v_allline;
-	p_timing->begin_line_of_active = scl_regs1->tg_v_active.b.v_actbg;
-	p_timing->end_line_of_active = scl_regs1->tg_v_active.b.v_actend;
-	p_timing->line_number_between_VBIS_VBIE = scl_regs1->tg_vbi.b.vbie;
-	p_timing->line_number_between_PVBI_VBIS = scl_regs1->tg_vbi.b.pvbi;
+	p_timing->read_cycle = vppif_reg32_read(SCL_TG_RDCYC);
+	p_timing->total_pixel_of_line = vppif_reg32_read(SCL_TG_H_ALLPIXEL);
+	p_timing->begin_pixel_of_active = vppif_reg32_read(SCL_TG_H_ACTBG);
+	p_timing->end_pixel_of_active = vppif_reg32_read(SCL_TG_H_ACTEND);
+	p_timing->total_line_of_frame = vppif_reg32_read(SCL_TG_V_ALLLINE);
+	p_timing->begin_line_of_active = vppif_reg32_read(SCL_TG_V_ACTBG);
+	p_timing->end_line_of_active = vppif_reg32_read(SCL_TG_V_ACTEND);
+	p_timing->line_number_between_VBIS_VBIE = vppif_reg32_read(SCL_TG_VBIE);
+	p_timing->line_number_between_PVBI_VBIS = vppif_reg32_read(SCL_TG_PVBI);
 }
 
 void scl_set_watchdog(U32 count)
 {
 	if (0 != count) {
-		scl_regs1->tg_watchdog = count;
-		scl_regs1->tg_ctl.b.watchdog_enable = 1;
+		vppif_reg32_write(SCL_TG_WATCHDOG_VALUE, count);
+		vppif_reg32_write(SCL_TG_WATCHDOG_ENABLE, VPP_FLAG_TRUE);
 	} else
-		scl_regs1->tg_ctl.b.watchdog_enable = 0;
+		vppif_reg32_write(SCL_TG_WATCHDOG_ENABLE, VPP_FLAG_FALSE);
 }
 
 void scl_set_timing_master(vpp_mod_t mod_bit)
 {
-	scl_regs1->tg_govw.b.enable = (mod_bit == VPP_MOD_GOVW) ? 1 : 0;
+	if (VPP_MOD_SCL == mod_bit)
+		vppif_reg32_write(SCL_TG_GOVWTG_ENABLE, VPP_FLAG_DISABLE);
+	else if (VPP_MOD_GOVW == mod_bit)
+		vppif_reg32_write(SCL_TG_GOVWTG_ENABLE, VPP_FLAG_ENABLE);
+	else {
+		DBGMSG("*E* check the parameter.\n");
+		return;
+	}
 }
 
 vpp_mod_t scl_get_timing_master(void)
 {
-	return (scl_regs1->tg_govw.b.enable) ? VPP_MOD_GOVW : VPP_MOD_SCL;
+	if (vppif_reg32_read(SCL_TG_GOVWTG_ENABLE))
+		return VPP_MOD_GOVW;
+	return VPP_MOD_SCL;
 }
 
 void scl_set_drop_line(vpp_flag_t enable)
 {
-	scl_regs1->scldw = enable;
+	vppif_reg32_write(SCL_SCLDW_METHOD, enable);
 }
 
 /* only one feature can work, other should be disable */
-void scl_set_filter_mode(enum vpp_filter_mode_t mode, int enable)
+void scl_set_filter_mode(vpp_filter_mode_t mode, int enable)
 {
 	DBG_DETAIL("(%d,%d)\n", mode, enable);
 	if (mode != VPP_FILTER_SCALE) {
-		if (scl_regs1->sclup_en.b.v || scl_regs1->sclup_en.b.h)
+		if (vppif_reg32_read(SCL_VSCLUP_ENABLE) ||
+			vppif_reg32_read(SCL_HSCLUP_ENABLE))
 			DPRINT("[SCL] *W* filter can't work w scale\n");
 	}
-	scl_regs2->field_mode.b.deblock = 0;
-	scl_regs2->field_mode.b.field_deflicker = 0;
-	scl_regs2->field_mode.b.frame_deflicker = 0;
+	vppif_reg32_write(SCL_DEBLOCK_ENABLE, 0);
+	vppif_reg32_write(SCL_FIELD_DEFLICKER, 0);
+	vppif_reg32_write(SCL_FRAME_DEFLICKER, 0);
 	switch (mode) {
 	default:
 	case VPP_FILTER_SCALE: /* scale mode */
 		break;
 	case VPP_FILTER_DEBLOCK: /* deblock */
-		scl_regs2->field_mode.b.deblock = enable;
+		vppif_reg32_write(SCL_DEBLOCK_ENABLE, enable);
 		break;
 	case VPP_FILTER_FIELD_DEFLICKER: /* field deflicker */
-		scl_regs2->field_mode.b.field_deflicker = enable;
+		vppif_reg32_write(SCL_FIELD_DEFLICKER, enable);
 		break;
 	case VPP_FILTER_FRAME_DEFLICKER: /* frame deflicker */
-		scl_regs2->field_mode.b.frame_deflicker = enable;
+		vppif_reg32_write(SCL_FRAME_DEFLICKER, enable);
 		break;
 	}
 }
 
-enum vpp_filter_mode_t scl_get_filter_mode(void)
+vpp_filter_mode_t scl_get_filter_mode(void)
 {
-	if (scl_regs1->sclup_en.b.v || scl_regs1->sclup_en.b.h)
+	if (vppif_reg32_read(SCL_VSCLUP_ENABLE) ||
+		vppif_reg32_read(SCL_HSCLUP_ENABLE))
 		return VPP_FILTER_SCALE;
-
-	if (scl_regs2->field_mode.b.deblock)
+	if (vppif_reg32_read(SCL_DEBLOCK_ENABLE))
 		return VPP_FILTER_DEBLOCK;
 
-	if (scl_regs2->field_mode.b.field_deflicker)
+	if (vppif_reg32_read(SCL_FIELD_DEFLICKER))
 		return VPP_FILTER_FIELD_DEFLICKER;
 
-	if (scl_regs2->field_mode.b.frame_deflicker)
+	if (vppif_reg32_read(SCL_FRAME_DEFLICKER))
 		return VPP_FILTER_FRAME_DEFLICKER;
+
 	return VPP_FILTER_SCALE;
 }
 
 void sclr_set_mif_enable(vpp_flag_t enable)
 {
-	scl_regs1->r_ctl.b.mif_enable = enable;
+	vppif_reg32_write(SCLR_MIF_ENABLE, enable);
 }
 
 void sclr_set_mif2_enable(vpp_flag_t enable)
@@ -480,55 +499,81 @@ void sclr_set_mif2_enable(vpp_flag_t enable)
 
 void sclr_set_colorbar(vpp_flag_t enable, int width, int inverse)
 {
-	scl_regs1->r_ctl.b.colorbar_mode = width;
-	scl_regs1->r_ctl.b.colorbar_inv = inverse;
-	scl_regs1->r_ctl.b.colorbar_enable = enable;
+	vppif_reg32_write(SCLR_COLBAR_MODE, width);
+	vppif_reg32_write(SCLR_COLBAR_INVERSION, inverse);
+	vppif_reg32_write(SCLR_COLBAR_ENABLE, enable);
 }
 
 void sclr_set_field_mode(vpp_display_format_t fmt)
 {
-	scl_regs1->r_ctl.b.src_disp_fmt = fmt;
+	vppif_reg32_write(SCLR_SRC_DISP_FMT, fmt);
 }
 
 void sclr_set_display_format(vpp_display_format_t source,
 				vpp_display_format_t target)
 {
-	scl_regs1->r_ctl.b.src_disp_fmt =
-		(source == VPP_DISP_FMT_FIELD) ? 1 : 0;
-	scl_regs1->r_ctl.b.field = (target == VPP_DISP_FMT_FIELD) ? 1 : 0;
+	/* source */
+	switch (source) {
+	case VPP_DISP_FMT_FRAME:
+		vppif_reg32_write(SCLR_SRC_DISP_FMT, 0x0);
+		break;
+	case VPP_DISP_FMT_FIELD:
+		vppif_reg32_write(SCLR_SRC_DISP_FMT, 0x1);
+		break;
+	default:
+		DBGMSG("*E* check the parameter.\n");
+		return;
+	}
+
+	/* target */
+	switch (target) {
+	case VPP_DISP_FMT_FRAME:
+		vppif_reg32_write(SCLR_TAR_DISP_FMT, 0x0);
+		break;
+	case VPP_DISP_FMT_FIELD:
+		vppif_reg32_write(SCLR_TAR_DISP_FMT, 0x1);
+		break;
+	default:
+		DBGMSG("*E* check the parameter.\n");
+		return;
+	}
 }
 
 void sclr_set_color_format(vdo_color_fmt format)
 {
-	p_scl->abgr_mode = 0;
 	if (format >= VDO_COL_FMT_ARGB) {
-		scl_regs1->r_ctl.b.rgb_mode =
-			(format == VDO_COL_FMT_RGB_565) ? 0x1 : 0x3;
-		if (format == VDO_COL_FMT_ABGR)
-			p_scl->abgr_mode = 1;
+		if (format == VDO_COL_FMT_RGB_565)
+			vppif_reg32_write(SCLR_RGB_MODE, 0x1);
+		else
+			vppif_reg32_write(SCLR_RGB_MODE, 0x3);
 		return;
 	}
-	scl_regs1->r_ctl.b.rgb_mode = 0;
-	scl_regs1->r_ctl.b.rgb = 0x0;
+	vppif_reg32_write(SCLR_RGB_MODE, 0x0);
 	switch (format) {
+	case VDO_COL_FMT_ARGB:
+		vppif_reg32_write(SCLR_COLFMT_RGB, 0x1);
+		break;
 	case VDO_COL_FMT_YUV444:
-		scl_regs1->r_ctl.b.yuv = 0x2;
+		vppif_reg32_write(SCLR_COLFMT_RGB, 0x0);
+		vppif_reg32_write(SCLR_COLFMT_YUV, 0x2);
 		break;
 	case VDO_COL_FMT_YUV422H:
-		scl_regs1->r_ctl.b.yuv = 0x0;
+		vppif_reg32_write(SCLR_COLFMT_RGB, 0x0);
+		vppif_reg32_write(SCLR_COLFMT_YUV, 0x0);
 		break;
 	case VDO_COL_FMT_YUV420:
-		scl_regs1->r_ctl.b.yuv = 0x1;
+		vppif_reg32_write(SCLR_COLFMT_RGB, 0x0);
+		vppif_reg32_write(SCLR_COLFMT_YUV, 0x1);
 		break;
 	default:
-		DBG_ERR("color fmt %d\n", format);
+		DBGMSG("*E* check the parameter.\n");
 		return;
 	}
 }
 
 vdo_color_fmt sclr_get_color_format(void)
 {
-	switch (scl_regs1->r_ctl.b.rgb_mode) {
+	switch (vppif_reg32_read(SCLR_RGB_MODE)) {
 	case 0x1:
 		return VDO_COL_FMT_RGB_565;
 	case 0x3:
@@ -536,7 +581,7 @@ vdo_color_fmt sclr_get_color_format(void)
 	default:
 		break;
 	}
-	switch (scl_regs1->r_ctl.b.yuv) {
+	switch (vppif_reg32_read(SCLR_COLFMT_YUV)) {
 	case 0:
 		return VDO_COL_FMT_YUV422H;
 	case 1:
@@ -551,7 +596,17 @@ vdo_color_fmt sclr_get_color_format(void)
 
 void sclr_set_media_format(vpp_media_format_t format)
 {
-	scl_regs1->r_ctl.b.h264 = (format == VPP_MEDIA_FMT_H264) ? 1 : 0;
+	switch (format) {
+	case VPP_MEDIA_FMT_MPEG:
+		vppif_reg32_write(SCLR_MEDIAFMT_H264, 0x0);
+		break;
+	case VPP_MEDIA_FMT_H264:
+		vppif_reg32_write(SCLR_MEDIAFMT_H264, 0x1);
+		break;
+	default:
+		DBGMSG("*E* check the parameter.\n");
+		return;
+	}
 }
 
 void sclr_set_fb_addr(U32 y_addr, U32 c_addr)
@@ -563,7 +618,7 @@ void sclr_set_fb_addr(U32 y_addr, U32 c_addr)
 	DBGMSG("y_addr:0x%08x, c_addr:0x%08x\n", y_addr, c_addr);
 
 	offset_y = offset_c = 0;
-	line_y = line_c = scl_regs1->r_h_size.b.fb_w;
+	line_y = line_c = vppif_reg32_read(SCLR_YBUFWID);
 	switch (sclr_get_color_format()) {
 	case VDO_COL_FMT_YUV420:
 		offset_c /= 2;
@@ -584,54 +639,54 @@ void sclr_set_fb_addr(U32 y_addr, U32 c_addr)
 		line_c *= 2;
 		break;
 	}
-	pre_y = scl_regs1->r_ysa;
-	pre_c = scl_regs1->r_csa;
-	scl_regs1->r_ysa = y_addr + offset_y;
-	scl_regs1->r_csa = c_addr + offset_c;
+	pre_y = vppif_reg32_in(REG_SCLR_YSA);
+	pre_c = vppif_reg32_in(REG_SCLR_CSA);
+	vppif_reg32_out(REG_SCLR_YSA, y_addr + offset_y);
+	vppif_reg32_out(REG_SCLR_CSA, c_addr + offset_c);
 }
 
 void sclr_get_fb_addr(U32 *y_addr, U32 *c_addr)
 {
-	*y_addr = scl_regs1->r_ysa;
-	*c_addr = scl_regs1->r_csa;
+	*y_addr = vppif_reg32_in(REG_SCLR_YSA);
+	*c_addr = vppif_reg32_in(REG_SCLR_CSA);
 /*	DBGMSG("y_addr:0x%08x, c_addr:0x%08x\n", *y_addr, *c_addr); */
 }
 
 void sclr_set_width(U32 y_pixel, U32 y_buffer)
 {
-	scl_regs1->r_h_size.b.pix_w = y_pixel;
-	scl_regs1->r_h_size.b.fb_w = y_buffer;
+	vppif_reg32_write(SCLR_YPXLWID, y_pixel);
+	vppif_reg32_write(SCLR_YBUFWID, y_buffer);
 }
 
 void sclr_get_width(U32 *p_y_pixel, U32 *p_y_buffer)
 {
-	*p_y_pixel = scl_regs1->r_h_size.b.pix_w;
-	*p_y_buffer = scl_regs1->r_h_size.b.fb_w;
+	*p_y_pixel = vppif_reg32_read(SCLR_YPXLWID);
+	*p_y_buffer = vppif_reg32_read(SCLR_YBUFWID);
 }
 
 void sclr_set_crop(U32 h_crop, U32 v_crop)
 {
-	scl_regs1->r_crop.b.hcrop = h_crop;
-	scl_regs1->r_crop.b.vcrop = v_crop;
+	vppif_reg32_write(SCLR_HCROP, h_crop);
+	vppif_reg32_write(SCLR_VCROP, v_crop);
 }
 
 void sclr_get_fb_info(U32 *width, U32 *act_width,
 				U32 *x_offset, U32 *y_offset)
 {
-	*width = scl_regs1->r_h_size.b.fb_w;
-	*act_width = scl_regs1->r_h_size.b.pix_w;
-	*x_offset = scl_regs1->r_crop.b.hcrop;
-	*y_offset = scl_regs1->r_crop.b.vcrop;
+	*width = vppif_reg32_read(SCLR_YBUFWID);
+	*act_width = vppif_reg32_read(SCLR_YPXLWID);
+	*x_offset = vppif_reg32_read(SCLR_HCROP);
+	*y_offset = vppif_reg32_read(SCLR_VCROP);
 }
 
 void sclr_set_threshold(U32 value)
 {
-	scl_regs1->r_fifo_ctl.b.thr = value;
+	vppif_reg32_write(SCLR_FIFO_THR, value);
 }
 
 void sclw_set_mif_enable(vpp_flag_t enable)
 {
-	scl_regs1->w_ctl.b.mif_enable = enable;
+	vppif_reg32_write(SCLW_MIF_ENABLE, enable);
 }
 
 void sclw_set_color_format(vdo_color_fmt format)
@@ -639,31 +694,31 @@ void sclw_set_color_format(vdo_color_fmt format)
 	/* 0-888(4 byte), 1-5515(2 byte), 2-666(4 byte), 3-565(2 byte) */
 	switch (format) {
 	case VDO_COL_FMT_RGB_666:
-		scl_regs1->w_ctl.b.rgb = 1;
-		scl_regs2->igs.b.mode = 2;
+		vppif_reg32_write(SCLW_COLFMT_RGB, 1);
+		vppif_reg32_write(SCL_IGS_MODE, 2);
 		break;
 	case VDO_COL_FMT_RGB_565:
-		scl_regs1->w_ctl.b.rgb = 1;
-		scl_regs2->igs.b.mode = 3;
+		vppif_reg32_write(SCLW_COLFMT_RGB, 1);
+		vppif_reg32_write(SCL_IGS_MODE, 3);
 		break;
 	case VDO_COL_FMT_RGB_1555:
-		scl_regs1->w_ctl.b.rgb = 1;
-		scl_regs2->igs.b.mode = 1;
+		vppif_reg32_write(SCLW_COLFMT_RGB, 1);
+		vppif_reg32_write(SCL_IGS_MODE, 1);
 		break;
 	case VDO_COL_FMT_ARGB:
-		scl_regs1->w_ctl.b.rgb = 1;
-		scl_regs2->igs.b.mode = 0;
+		vppif_reg32_write(SCLW_COLFMT_RGB, 1);
+		vppif_reg32_write(SCL_IGS_MODE, 0);
 		break;
 	case VDO_COL_FMT_YUV444:
-		scl_regs1->w_ctl.b.rgb = 0;
-		scl_regs1->w_ctl.b.yuv = 0;
-		scl_regs2->igs.b.mode = 0;
+		vppif_reg32_write(SCLW_COLFMT_RGB, 0);
+		vppif_reg32_write(SCLW_COLFMT_YUV, 0);
+		vppif_reg32_write(SCL_IGS_MODE, 0);
 		break;
 	case VDO_COL_FMT_YUV422H:
 	case VDO_COL_FMT_YUV420:
-		scl_regs1->w_ctl.b.rgb = 0;
-		scl_regs1->w_ctl.b.yuv = 1;
-		scl_regs2->igs.b.mode = 0;
+		vppif_reg32_write(SCLW_COLFMT_RGB, 0);
+		vppif_reg32_write(SCLW_COLFMT_YUV, 1);
+		vppif_reg32_write(SCL_IGS_MODE, 0);
 		break;
 	default:
 		DBGMSG("*E* check the parameter.\n");
@@ -673,8 +728,8 @@ void sclw_set_color_format(vdo_color_fmt format)
 
 vdo_color_fmt sclw_get_color_format(void)
 {
-	if (scl_regs1->w_ctl.b.rgb) {
-		switch (scl_regs2->igs.b.mode) {
+	if (vppif_reg32_read(SCLW_COLFMT_RGB)) {
+		switch (vppif_reg32_read(SCL_IGS_MODE)) {
 		case 0:
 			return VDO_COL_FMT_ARGB;
 		case 1:
@@ -686,20 +741,20 @@ vdo_color_fmt sclw_get_color_format(void)
 		}
 	}
 
-	if (scl_regs1->w_ctl.b.yuv)
+	if (vppif_reg32_read(SCLW_COLFMT_YUV))
 		return VDO_COL_FMT_YUV422H;
 	return VDO_COL_FMT_YUV444;
 }
 
 void sclw_set_alpha(int enable, char data)
 {
-	scl_regs2->argb_alpha.b.data = data;
-	scl_regs2->argb_alpha.b.enable = enable;
+	vppif_reg32_write(SCL_FIXED_ALPHA_DATA, data);
+	vppif_reg32_write(SCL_FIXED_ALPHA_ENABLE, enable);
 }
 
 void sclw_set_field_mode(vpp_display_format_t fmt)
 {
-	scl_regs1->r_ctl.b.field = fmt;
+	vppif_reg32_write(SCLR_TAR_DISP_FMT, fmt);
 }
 
 void sclw_set_fb_addr(U32 y_addr, U32 c_addr)
@@ -708,77 +763,77 @@ void sclw_set_fb_addr(U32 y_addr, U32 c_addr)
 /*	if( (y_addr & 0x3f) || (c_addr & 0x3f) ){
 		DPRINT("[SCL] *E* addr should align 64\n");
 	} */
-	scl_regs1->w_ysa = y_addr;
-	scl_regs1->w_csa = c_addr;
+	vppif_reg32_out(REG_SCLW_YSA, y_addr);
+	vppif_reg32_out(REG_SCLW_CSA, c_addr);
 }
 
 void sclw_get_fb_addr(U32 *y_addr, U32 *c_addr)
 {
-	*y_addr = scl_regs1->w_ysa;
-	*c_addr = scl_regs1->w_csa;
+	*y_addr = vppif_reg32_in(REG_SCLW_YSA);
+	*c_addr = vppif_reg32_in(REG_SCLW_CSA);
 	DBGMSG("y_addr:0x%08x, c_addr:0x%08x\n", *y_addr, *c_addr);
 }
 
 void sclw_set_fb_width(U32 width, U32 buf_width)
 {
-	scl_regs1->w_y_time.b.pxl_w = width;
-	scl_regs1->w_y_time.b.fb_w = buf_width;
+	vppif_reg32_write(SCLW_YPXLWID, width);
+	vppif_reg32_write(SCLW_YBUFWID, buf_width);
 	if (sclw_get_color_format() == VDO_COL_FMT_YUV444) {
-		scl_regs1->w_c_time.b.pxl_w = width;
-		scl_regs1->w_c_time.b.fb_w = buf_width * 2;
+		vppif_reg32_write(SCLW_CPXLWID, width);
+		vppif_reg32_write(SCLW_CBUFWID, buf_width * 2);
 	} else {
-		scl_regs1->w_c_time.b.pxl_w = width / 2;
-		scl_regs1->w_c_time.b.fb_w = buf_width;
+		vppif_reg32_write(SCLW_CPXLWID, width / 2);
+		vppif_reg32_write(SCLW_CBUFWID, buf_width);
 	}
 }
 
 void sclw_get_fb_width(U32 *width, U32 *buf_width)
 {
-	*width = scl_regs1->w_y_time.b.pxl_w;
-	*buf_width = scl_regs1->w_y_time.b.fb_w;
+	*width = vppif_reg32_read(SCLW_YPXLWID);
+	*buf_width = vppif_reg32_read(SCLW_YBUFWID);
 }
 
 void scl_R2_set_mif_enable(int enable)
 {
-	scl_regs1->r2_ctl.b.mif_en = enable;
+	vppif_reg32_write(SCL_R2_MIF_EN, enable);
 }
 
 void scl_R2_set_colorbar(int enable, int wide, int inv)
 {
-	scl_regs1->r2_ctl.b.color_en = enable;
-	scl_regs1->r2_ctl.b.color_wide = wide;
-	scl_regs1->r2_ctl.b.color_inv = inv;
+	vppif_reg32_write(SCL_R2_COLOR_EN, enable);
+	vppif_reg32_write(SCL_R2_COLOR_WIDE, wide);
+	vppif_reg32_write(SCL_R2_COLOR_INV, inv);
 }
 
 void scl_R2_set_color_format(vdo_color_fmt colfmt)
 {
 	if (colfmt >= VDO_COL_FMT_ARGB) {
-		scl_regs1->r2_ctl.b.rgb_mode =
-			(colfmt == VDO_COL_FMT_RGB_565) ? 0x1 : 0x3;
+		vppif_reg32_write(SCL_R2_RGB_MODE,
+			(colfmt == VDO_COL_FMT_RGB_565) ? 0x1 : 0x3);
 		return;
 	}
-	scl_regs1->r2_ctl.b.rgb_mode = 0;
+	vppif_reg32_write(SCL_R2_RGB_MODE, 0x0);
 	switch (colfmt) {
 	case VDO_COL_FMT_YUV444:
-		scl_regs1->r2_ctl.b.vfmt = 0x2;
+		vppif_reg32_write(SCL_R2_VFMT, 0x2);
 		break;
 	case VDO_COL_FMT_YUV422H:
-		scl_regs1->r2_ctl.b.vfmt = 0x0;
+		vppif_reg32_write(SCL_R2_VFMT, 0x0);
 		break;
 	case VDO_COL_FMT_YUV420:
-		scl_regs1->r2_ctl.b.vfmt = 0x1;
+		vppif_reg32_write(SCL_R2_VFMT, 0x1);
 		break;
 	default:
-		DBG_ERR("color fmt %d\n", colfmt);
+		DBGMSG("*E* check the parameter.\n");
 		return;
 	}
 }
 
 vdo_color_fmt scl_R2_get_color_format(void)
 {
-	switch (scl_regs1->r2_ctl.b.rgb_mode) {
+	switch (vppif_reg32_read(SCL_R2_RGB_MODE)) {
 	case 0:
-		switch (scl_regs1->r2_ctl.b.vfmt) {
+		switch (vppif_reg32_read(SCL_R2_VFMT)) {
 		case 0:
 			return VDO_COL_FMT_YUV422H;
 		case 1:
@@ -805,65 +860,70 @@ void scl_R2_set_csc_mode(vpp_csc_t mode)
 	dst_fmt = sclw_get_color_format();
 	mode = vpp_check_csc_mode(mode, src_fmt, dst_fmt, 0);
 
-	scl_regs2->r2_csc1 = vpp_csc_parm[mode][0];
-	scl_regs2->r2_csc2 = vpp_csc_parm[mode][1];
-	scl_regs2->r2_csc3 = vpp_csc_parm[mode][2];
-	scl_regs2->r2_csc4 = vpp_csc_parm[mode][3];
-	scl_regs2->r2_csc5 = vpp_csc_parm[mode][4];
-	scl_regs2->r2_csc6 = vpp_csc_parm[mode][5];
-	scl_regs2->r2_csc.val = vpp_csc_parm[mode][6];
-	scl_regs2->r2_csc.b.enable = (mode >= VPP_CSC_MAX) ? 0 : 1;
+	if (mode >= VPP_CSC_MAX)
+		vppif_reg32_write(SCL_R2_CSC_EN, VPP_FLAG_DISABLE);
+	else {
+		vppif_reg32_out(REG_SCL_R2_CSC1, vpp_csc_parm[mode][0]);
+		vppif_reg32_out(REG_SCL_R2_CSC2, vpp_csc_parm[mode][1]);
+		vppif_reg32_out(REG_SCL_R2_CSC3, vpp_csc_parm[mode][2]);
+		vppif_reg32_out(REG_SCL_R2_CSC4, vpp_csc_parm[mode][3]);
+		vppif_reg32_out(REG_SCL_R2_CSC5, vpp_csc_parm[mode][4]);
+		vppif_reg32_out(REG_SCL_R2_CSC6, vpp_csc_parm[mode][5]);
+		vppif_reg32_out(REG_SCL_R2_CSC, vpp_csc_parm[mode][6]);
+		vppif_reg32_write(SCL_R2_CSC_EN, VPP_FLAG_ENABLE);
+	}
 }
 
 void scl_R2_set_framebuffer(vdo_framebuf_t *fb)
 {
-	scl_regs1->r2_ctl.b.iofmt = (fb->flag & VDO_FLAG_INTERLACE) ? 1 : 0;
+	vppif_reg32_write(SCL_R2_IOFMT,
+		(fb->flag & VDO_FLAG_INTERLACE) ? 1 : 0);
 	scl_R2_set_color_format(fb->col_fmt);
-	scl_regs1->r2_ysa = fb->y_addr;
-	scl_regs1->r2_csa = fb->c_addr;
-	scl_regs1->r2_h_size.b.fbw = fb->fb_w;
-	scl_regs1->r2_h_size.b.lnsize = fb->img_w;
-	scl_regs1->r2_crop.b.hcrop = fb->h_crop;
-	scl_regs1->r2_crop.b.vcrop = fb->v_crop;
+	vppif_reg32_out(REG_SCLR2_YSA, fb->y_addr);
+	vppif_reg32_out(REG_SCLR2_CSA, fb->c_addr);
+	vppif_reg32_write(SCL_R2_FBW, fb->fb_w);
+	vppif_reg32_write(SCL_R2_LNSIZE, fb->img_w);
+	vppif_reg32_write(SCL_R2_HCROP, fb->h_crop);
+	vppif_reg32_write(SCL_R2_VCROP, fb->v_crop);
 	scl_R2_set_csc_mode(p_scl->fb_p->csc_mode);
 }
 
 void scl_ALPHA_set_enable(int enable)
 {
-	scl_regs1->alpha_colorkey.b.enable = enable;
+	vppif_reg32_write(SCL_ALPHA_COLORKEY_ENABLE, enable);
 }
 
 void scl_ALPHA_set_swap(int enable)
 {
 	/* 0-(alpha,1-alpha),1:(1-alpha,alpha) */
-	scl_regs1->alpha_md.b.swap = enable;
+	vppif_reg32_write(SCL_ALPHA_SWAP, enable);
 }
 
 void scl_ALPHA_set_src(int mode, int fixed)
 {
 	/* 0-RMIF1,1-RMIF2,2-Fixed ALPHA */
-	scl_regs1->alpha_md.b.src = mode;
-	scl_regs1->alpha_fxd.b.src_fixed = fixed;
+	vppif_reg32_write(SCL_ALPHA_SRC, mode);
+	vppif_reg32_write(SCL_ALPHA_SRC_FIXED, fixed);
 }
 
 void scl_ALPHA_set_dst(int mode, int fixed)
 {
 	/* 0-RMIF1,1-RMIF2,2-Fixed ALPHA */
-	scl_regs1->alpha_md.b.dst = mode;
-	scl_regs1->alpha_fxd.b.dst_fixed = fixed;
+	vppif_reg32_write(SCL_ALPHA_DST, mode);
+	vppif_reg32_write(SCL_ALPHA_DST_FIXED, fixed);
 }
 
 void scl_ALPHA_set_color_key(int rmif2, int comp, int mode, int colkey)
 {
 	/* 0-RMIF1,1-RMIF2 */
-	scl_regs1->alpha_colorkey.b.from = rmif2;
+	vppif_reg32_write(SCL_ALPHA_COLORKEY_FROM, rmif2);
 	/* 0-888,1-777,2-666,3-555 */
-	scl_regs1->alpha_colorkey.b.comp = comp;
+	vppif_reg32_write(SCL_ALPHA_COLORKEY_COMP, comp);
 	/* (Non-Hit,Hit):0/1-(alpha,alpha),
 	2-(alpha,pix1),3-(pix1,alpha),4-(alpha,pix2),
 	5-(pix2,alpha),6-(pix1,pix2),7-(pix2,pix1) */
-	scl_regs1->alpha_colorkey.b.mode = mode;
-	scl_regs1->alpha_colorkey_rgb.val = colkey;
+	vppif_reg32_write(SCL_ALPHA_COLORKEY_MODE, mode);
+	vppif_reg32_out(REG_ALFA_COLORKEY_RGB, colkey);
 }
 
 void scl_set_overlap(vpp_overlap_t *p)
@@ -885,8 +945,8 @@ void scl_set_overlap(vpp_overlap_t *p)
 
 void scl_set_req_num(int ynum, int cnum)
 {
-	scl_regs1->r_req_num.b.y_req_num = ynum;
-	scl_regs1->r_req_num.b.c_req_num = cnum;
+	vppif_reg32_write(SCL_R_Y_REQ_NUM, ynum);
+	vppif_reg32_write(SCL_R_C_REQ_NUM, cnum);
 }
 
 static void scl_set_scale_PP(unsigned int src, unsigned int dst,
@@ -979,15 +1039,17 @@ void scl_set_scale(unsigned int SRC_W, unsigned int SRC_H,
 			rec_h = 1;
 		if (SRC_H == DST_H)
 			rec_v = 1;
-		scl_regs1->true_bilinear.b.h = h;
-		scl_regs1->true_bilinear.b.v = v;
-		scl_regs2->recursive_mode.b.h = rec_h;
-		scl_regs2->recursive_mode.b.v = rec_v;
+		vppif_reg32_write(SCL_BILINEAR_H, h);
+		vppif_reg32_write(SCL_BILINEAR_V, v);
+		vppif_reg32_write(SCL_RECURSIVE_H, rec_h);
+		vppif_reg32_write(SCL_RECURSIVE_V, rec_v);
+
+		/* vertical bilinear mode */
 		if (v) {
-			scl_regs1->vxwidth.b.vxwidth =
-				scl_regs1->vxwidth.b.vxwidth - 1;
-			scl_regs1->vxwidth.b.dst_vxwidth =
-				scl_regs1->vxwidth.b.vxwidth;
+			vppif_reg32_write(SCL_VXWIDTH,
+				vppif_reg32_read(SCL_VXWIDTH) - 1);
+			vppif_reg32_write(SCL_DST_VXWIDTH,
+				vppif_reg32_read(SCL_VXWIDTH));
 		}
 		sclr_set_mif2_enable((v) ? VPP_FLAG_ENABLE : VPP_FLAG_DISABLE);
 	}
@@ -1043,10 +1105,10 @@ void sclw_set_framebuffer(vdo_framebuf_t *fb)
 
 void scl_init(void *base)
 {
-	struct scl_mod_t *mod_p;
-	struct vpp_fb_base_t *fb_p;
+	scl_mod_t *mod_p;
+	vpp_fb_base_t *fb_p;
 
-	mod_p = (struct scl_mod_t *) base;
+	mod_p = (scl_mod_t *) base;
 	fb_p = mod_p->fb_p;
 
 	scl_set_reg_level(VPP_REG_LEVEL_1);
@@ -1064,16 +1126,17 @@ void scl_init(void *base)
 	sclr_set_threshold(0xf);
 
 	/* filter default value */
-	scl_regs2->dblk_threshold.b.layer1_boundary = 48;
-	scl_regs2->dblk_threshold.b.layer2_boundary = 16;
+	vppif_reg32_write(SCL_1ST_LAYER_BOUNDARY, 48);
+	vppif_reg32_write(SCL_2ND_LAYER_BOUNDARY, 16);
 
-	scl_regs2->field_flicker.b.y_thd = 8;
-	scl_regs2->field_flicker.b.c_thd = 8;
-	scl_regs2->field_flicker.b.condition = 0;
+	vppif_reg32_write(SCL_FIELD_FILTER_Y_THD, 8);
+	vppif_reg32_write(SCL_FIELD_FILTER_C_THD, 8);
+	vppif_reg32_write(SCL_FIELD_FILTER_CONDITION, 0);
 
-	scl_regs2->frame_flicker.b.rgb = 0;
-	scl_regs2->frame_flicker.b.sampler = 14;
-	scl_regs2->frame_flicker.b.scene_chg_thd = 32;
+	vppif_reg32_write(SCL_FRAME_FILTER_RGB, 0);
+	vppif_reg32_write(SCL_FRAME_FILTER_SAMPLER, 14);
+	vppif_reg32_write(SCL_FR_FILTER_SCENE_CHG_THD, 32);
+
 	scl_set_reg_update(VPP_FLAG_ENABLE);
 	scl_set_tg_enable(VPP_FLAG_DISABLE);
 }
@@ -1103,25 +1166,21 @@ static void scl_proc_scale_complete_work(int arg)
 #endif
 }
 
-#ifdef __KERNEL__
 struct timer_list scl_scale_timer;
-#endif
 int scl_proc_scale_complete(void *arg)
 {
-#ifdef __KERNEL__
 	del_timer(&scl_scale_timer);
-#endif
+
 /*	DPRINT("[SCL] scl_proc_scale_complete\n"); */
-	if (scl_regs1->tg_sts.b.tgerr) {
+	if (vppif_reg32_read(SCL_INTSTS_TGERR)) {
 		DPRINT("[SCL] scale TG err 0x%x,0x%x\n",
-			scl_regs1->tg_sts.val, scl_regs1->w_ff_ctl.val);
-		scl_regs1->tg_sts.val = BIT0;
-		scl_regs1->w_ff_ctl.val =  0x10101;
+			vppif_reg32_in(REG_SCL_TG_STS),
+			vppif_reg32_in(REG_SCLW_FF_CTL));
+		vppif_reg32_out(REG_SCL_TG_STS+0x0, BIT0);
+		vppif_reg32_out(REG_SCLW_FF_CTL, 0x10101);
 	}
 	scl_set_tg_enable(VPP_FLAG_DISABLE);
-#ifndef CONFIG_UBOOT
 	vppm_set_int_enable(VPP_FLAG_DISABLE, SCL_COMPLETE_INT);
-#endif
 	sclw_set_mif_enable(VPP_FLAG_DISABLE);
 	sclr_set_mif_enable(VPP_FLAG_DISABLE);
 	sclr_set_mif2_enable(VPP_FLAG_DISABLE);
@@ -1150,21 +1209,18 @@ void scl_scale_timeout(int arg)
 
 void scl_set_scale_timer(int ms)
 {
-#ifdef __KERNEL__
 	if (scl_scale_timer.function)
 		del_timer(&scl_scale_timer);
 	init_timer(&scl_scale_timer);
 	scl_scale_timer.function = (void *) scl_scale_timeout;
 	scl_scale_timer.expires = jiffies + msecs_to_jiffies(ms);
 	add_timer(&scl_scale_timer);
-#endif
 }
 
 int scl_proc_scale_finish(void)
 {
-	int ret = 0;
-
 #ifdef __KERNEL__
+	int ret;
 
 /*	DPRINT("[SCL] scl_proc_scale_finish\n"); */
 	ret = wait_event_interruptible_timeout(scl_proc_scale_event,
@@ -1302,25 +1358,20 @@ int scl_set_scale_overlap(vdo_framebuf_t *s,
 
 	/* scale process */
 	scl_set_enable(VPP_FLAG_ENABLE);
-	scl_regs1->tg_ctl.b.oneshot = 1;
+	vppif_reg32_write(SCL_ONESHOT_ENABLE, 1);
 	sclw_set_mif_enable(VPP_FLAG_ENABLE);
 	scl_set_tg_enable(VPP_FLAG_ENABLE);
 #ifdef CONFIG_VPP_CHECK_SCL_STATUS
-	scl_regs1->tg_sts.val = BIT0;
-	scl_regs1->w_ff_ctl.val = 0x10101;
+	vppif_reg32_out(REG_SCL_TG_STS+0x0, BIT0);
+	vppif_reg32_out(REG_SCLW_FF_CTL, 0x10101);
 #endif
 	p_scl->scale_complete = 0;
-#ifndef CONFIG_UBOOT
 	vppm_set_int_enable(VPP_FLAG_ENABLE, SCL_COMPLETE_INT);
-#endif
+
 #if 0   /* for debug scale */
 	scl_reg_dump();
 #endif
-#ifdef CONFIG_UBOOT
-	while (scl_regs1->tg_ctl.b.enable);
-	scl_proc_scale_complete(0);
-	scl_proc_scale_finish();
-#else
+
 	if (p_scl->scale_sync) {
 		ret = vpp_irqproc_work(SCL_COMPLETE_INT,
 			(void *)scl_proc_scale_complete, 0, 100, 1);
@@ -1330,7 +1381,6 @@ int scl_set_scale_overlap(vdo_framebuf_t *s,
 			(void *)scl_proc_scale_complete, 0, 0, 1);
 		scl_set_scale_timer(100);
 	}
-#endif
 	return ret;
 }
 
@@ -1383,18 +1433,18 @@ void scl_suspend(int sts)
 	switch (sts) {
 	case 0:	/* disable module */
 		vpp_mod_set_clock(VPP_MOD_SCL, VPP_FLAG_ENABLE, 1);
-		scl_pm_enable = scl_regs1->en.b.alu_enable;
-		scl_regs1->en.b.alu_enable = 0;
-		scl_pm_r_mif1 = scl_regs1->r_ctl.b.mif_enable;
-		scl_pm_r_mif2 = scl_regs1->r2_ctl.b.mif_en;
-		scl_regs1->r2_ctl.b.mif_en = 0;
-		scl_regs1->r_ctl.b.mif_enable = 0;
-		scl_pm_w_mif = scl_regs1->w_ctl.b.mif_enable;
-		scl_regs1->w_ctl.b.mif_enable = 0;
+		scl_pm_enable = vppif_reg32_read(SCL_ALU_ENABLE);
+		vppif_reg32_write(SCL_ALU_ENABLE, 0);
+		scl_pm_r_mif1 = vppif_reg32_read(SCLR_MIF_ENABLE);
+		scl_pm_r_mif2 = vppif_reg32_read(SCL_R2_MIF_EN);
+		vppif_reg32_write(SCL_R2_MIF_EN, 0);
+		vppif_reg32_write(SCLR_MIF_ENABLE, 0);
+		scl_pm_w_mif = vppif_reg32_read(SCLW_MIF_ENABLE);
+		vppif_reg32_write(SCLW_MIF_ENABLE, 0);
 		break;
 	case 1: /* disable tg */
-		scl_pm_tg = scl_regs1->tg_ctl.b.enable;
-		scl_regs1->tg_ctl.b.enable = 0;
+		scl_pm_tg = vppif_reg32_read(SCL_TG_ENABLE);
+		vppif_reg32_write(SCL_TG_ENABLE, 0);
 		break;
 	case 2:	/* backup register */
 		p_scl->reg_bk = vpp_backup_reg(REG_SCL_BASE1_BEGIN,
@@ -1420,13 +1470,13 @@ void scl_resume(int sts)
 		scl_pm_bk2 = 0;
 		break;
 	case 1:	/* enable module */
-		scl_regs1->w_ctl.b.mif_enable = scl_pm_w_mif;
-		scl_regs1->r_ctl.b.mif_enable = scl_pm_r_mif1;
-		scl_regs1->r2_ctl.b.mif_en = scl_pm_r_mif2;
-		scl_regs1->en.b.alu_enable = scl_pm_enable;
+		vppif_reg32_write(SCLW_MIF_ENABLE, scl_pm_w_mif);
+		vppif_reg32_write(SCLR_MIF_ENABLE, scl_pm_r_mif1);
+		vppif_reg32_write(SCL_R2_MIF_EN, scl_pm_r_mif2);
+		vppif_reg32_write(SCL_ALU_ENABLE, scl_pm_enable);
 		break;
 	case 2: /* enable tg */
-		scl_regs1->tg_ctl.b.enable = scl_pm_tg;
+		vppif_reg32_write(SCL_TG_ENABLE, scl_pm_tg);
 		vpp_mod_set_clock(VPP_MOD_SCL, VPP_FLAG_DISABLE, 1);
 		break;
 	default:
@@ -1440,16 +1490,15 @@ void scl_resume(int sts)
 
 int scl_mod_init(void)
 {
-	struct vpp_fb_base_t *mod_fb_p;
+	vpp_fb_base_t *mod_fb_p;
 	vdo_framebuf_t *fb_p;
 
 	/* -------------------- SCL module -------------------- */
 	{
-	struct scl_mod_t *scl_mod_p;
+	scl_mod_t *scl_mod_p;
 
-	scl_mod_p = (struct scl_mod_t *) vpp_mod_register(VPP_MOD_SCL,
-				sizeof(struct scl_mod_t),
-				VPP_MOD_FLAG_FRAMEBUF);
+	scl_mod_p = (scl_mod_t *) vpp_mod_register(VPP_MOD_SCL,
+				sizeof(scl_mod_t), VPP_MOD_FLAG_FRAMEBUF);
 	if (!scl_mod_p) {
 		DPRINT("*E* SCL module register fail\n");
 		return -1;
@@ -1506,11 +1555,10 @@ int scl_mod_init(void)
 
 	/* -------------------- SCLW module -------------------- */
 	{
-	struct sclw_mod_t *sclw_mod_p;
+	sclw_mod_t *sclw_mod_p;
 
-	sclw_mod_p = (struct sclw_mod_t *) vpp_mod_register(VPP_MOD_SCLW,
-				sizeof(struct sclw_mod_t),
-				VPP_MOD_FLAG_FRAMEBUF);
+	sclw_mod_p = (sclw_mod_t *) vpp_mod_register(VPP_MOD_SCLW,
+				sizeof(sclw_mod_t), VPP_MOD_FLAG_FRAMEBUF);
 	if (!sclw_mod_p) {
 		DPRINT("*E* SCLW module register fail\n");
 		return -1;

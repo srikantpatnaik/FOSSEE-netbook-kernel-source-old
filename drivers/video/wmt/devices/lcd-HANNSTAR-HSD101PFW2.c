@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/lcd-HANNSTAR-HSD101PFW2.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ static void lcd_HSD101PFW2_power_off(void);
 
 /*----------------------- INTERNAL PRIVATE VARIABLES - -----------------------*/
 /* int  lcd_xxx;        *//*Example*/
-struct lcd_parm_t lcd_HSD101PFW2_parm = {
+lcd_parm_t lcd_HSD101PFW2_parm = {
 	.bits_per_pixel = 18,
 	.capability = 0,
 	.vmode = {
@@ -60,8 +60,6 @@ struct lcd_parm_t lcd_HSD101PFW2_parm = {
 	.vmode = 0,
 	.flag = 0,
 	},
-	.width = 222,
-	.height = 125,
 	.initial = lcd_HSD101PFW2_power_on,
 	.uninitial = lcd_HSD101PFW2_power_off,
 };
@@ -84,7 +82,7 @@ static void lcd_HSD101PFW2_power_off(void)
 	/* TODO */
 }
 
-struct lcd_parm_t *lcd_HSD101PFW2_get_parm(int arg)
+lcd_parm_t *lcd_HSD101PFW2_get_parm(int arg)
 {
 	return &lcd_HSD101PFW2_parm;
 }

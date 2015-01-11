@@ -26,128 +26,127 @@
 /* #define DEBUG_DETAIL */
 
 #include "vppm.h"
-HW_REG struct vppm_base_regs *vppm_regs = (void *) VPP_BASE_ADDR;
 
-void vppm_set_int_enable(vpp_flag_t enable, enum vpp_int_t int_bit)
+void vppm_set_int_enable(vpp_flag_t enable, vpp_int_t int_bit)
 {
 #ifdef WMT_FTBLK_SCL
 	if (int_bit & VPP_INT_SCL_VBIE)
-		vppm_regs->int_en.b.scl_vbie = enable;
+		vppif_reg32_write(VPP_SCL_INTEN_VBIE, enable);
 	if (int_bit & VPP_INT_SCL_VBIS)
-		vppm_regs->int_en.b.scl_vbis = enable;
+		vppif_reg32_write(VPP_SCL_INTEN_VBIS, enable);
 	if (int_bit & VPP_INT_SCL_PVBI)
-		vppm_regs->int_en.b.scl_pvbi = enable;
+		vppif_reg32_write(VPP_SCL_INTEN_PVBI, enable);
 #endif
 #ifdef WMT_FTBLK_GOVRH
 	if (int_bit & VPP_INT_GOVRH_VBIE)
-		vppm_regs->int_en.b.govrh_vbie = enable;
+		vppif_reg32_write(VPP_GOVRH_INTEN_VBIE, enable);
 	if (int_bit & VPP_INT_GOVRH_VBIS)
-		vppm_regs->int_en.b.govrh_vbis = enable;
+		vppif_reg32_write(VPP_GOVRH_INTEN_VBIS, enable);
 	if (int_bit & VPP_INT_GOVRH_PVBI)
-		vppm_regs->int_en.b.govrh_pvbi = enable;
+		vppif_reg32_write(VPP_GOVRH_INTEN_PVBI, enable);
 #endif
 #ifdef WMT_FTBLK_GOVRH
 	if (int_bit & VPP_INT_GOVRH2_VBIE)
-		vppm_regs->int_en.b.govrh2_vbie = enable;
+		vppif_reg32_write(VPP_GOVRH2_INTEN_VBIE, enable);
 	if (int_bit & VPP_INT_GOVRH2_VBIS)
-		vppm_regs->int_en.b.govrh2_vbis = enable;
+		vppif_reg32_write(VPP_GOVRH2_INTEN_VBIS, enable);
 	if (int_bit & VPP_INT_GOVRH2_PVBI)
-		vppm_regs->int_en.b.govrh2_pvbi = enable;
+		vppif_reg32_write(VPP_GOVRH2_INTEN_PVBI, enable);
 #endif
 }
 
-int vppm_get_int_enable(enum vpp_int_t int_bit)
+int vppm_get_int_enable(vpp_int_t int_bit)
 {
 	int ret = 0;
 
 #ifdef WMT_FTBLK_SCL
 	if (int_bit & VPP_INT_SCL_VBIE)
-		ret = vppm_regs->int_en.b.scl_vbie;
+		ret = vppif_reg32_read(VPP_SCL_INTEN_VBIE);
 	if (int_bit & VPP_INT_SCL_VBIS)
-		ret = vppm_regs->int_en.b.scl_vbis;
+		ret = vppif_reg32_read(VPP_SCL_INTEN_VBIS);
 	if (int_bit & VPP_INT_SCL_PVBI)
-		ret = vppm_regs->int_en.b.scl_pvbi;
+		ret = vppif_reg32_read(VPP_SCL_INTEN_PVBI);
 #endif
 #ifdef WMT_FTBLK_GOVRH
 	if (int_bit & VPP_INT_GOVRH_VBIE)
-		ret = vppm_regs->int_en.b.govrh_vbie;
+		ret = vppif_reg32_read(VPP_GOVRH_INTEN_VBIE);
 	if (int_bit & VPP_INT_GOVRH_VBIS)
-		ret = vppm_regs->int_en.b.govrh_vbis;
+		ret = vppif_reg32_read(VPP_GOVRH_INTEN_VBIS);
 	if (int_bit & VPP_INT_GOVRH_PVBI)
-		ret = vppm_regs->int_en.b.govrh_pvbi;
+		ret = vppif_reg32_read(VPP_GOVRH_INTEN_PVBI);
 #endif
 #ifdef WMT_FTBLK_GOVRH
 	if (int_bit & VPP_INT_GOVRH2_VBIE)
-		ret = vppm_regs->int_en.b.govrh2_vbie;
+		ret = vppif_reg32_read(VPP_GOVRH2_INTEN_VBIE);
 	if (int_bit & VPP_INT_GOVRH2_VBIS)
-		ret = vppm_regs->int_en.b.govrh2_vbis;
+		ret = vppif_reg32_read(VPP_GOVRH2_INTEN_VBIS);
 	if (int_bit & VPP_INT_GOVRH2_PVBI)
-		ret = vppm_regs->int_en.b.govrh2_pvbi;
+		ret = vppif_reg32_read(VPP_GOVRH2_INTEN_PVBI);
 #endif
 	return ret;
 }
 
-enum vpp_int_t vppm_get_int_status(void)
+vpp_int_t vppm_get_int_status(void)
 {
 	unsigned int int_enable_reg;
 	unsigned int int_sts_reg;
-	enum vpp_int_t int_sts = 0;
+	vpp_int_t int_sts = 0;
 
-	int_enable_reg = vppm_regs->int_en.val;
-	int_sts_reg = vppm_regs->int_sts.val;
+	int_enable_reg = vppif_reg32_in(REG_VPP_INTEN);
+	int_sts_reg = vppif_reg32_in(REG_VPP_INTSTS);
 
 #ifdef WMT_FTBLK_SCL
-	if (vppm_regs->int_en.b.scl_vbie && vppm_regs->int_sts.b.scl_vbie)
+	if ((int_enable_reg & BIT18) && (int_sts_reg & BIT18))
 		int_sts |= VPP_INT_SCL_VBIE;
-	if (vppm_regs->int_en.b.scl_vbis && vppm_regs->int_sts.b.scl_vbis)
+	if ((int_enable_reg & BIT17) && (int_sts_reg & BIT17))
 		int_sts |= VPP_INT_SCL_VBIS;
-	if (vppm_regs->int_en.b.scl_pvbi && vppm_regs->int_sts.b.scl_pvbi)
+	if ((int_enable_reg & BIT16) && (int_sts_reg & BIT16))
 		int_sts |= VPP_INT_SCL_PVBI;
 #endif
 #ifdef WMT_FTBLK_GOVRH
-	if (vppm_regs->int_en.b.govrh_pvbi && vppm_regs->int_sts.b.govrh_pvbi)
-		int_sts |= VPP_INT_GOVRH_PVBI;
-	if (vppm_regs->int_en.b.govrh_vbis && vppm_regs->int_sts.b.govrh_vbis)
-		int_sts |= VPP_INT_GOVRH_VBIS;
-	if (vppm_regs->int_en.b.govrh_vbie && vppm_regs->int_sts.b.govrh_vbie)
+	if ((int_enable_reg & BIT10) && (int_sts_reg & BIT10))
 		int_sts |= VPP_INT_GOVRH_VBIE;
+	if ((int_enable_reg & BIT9) && (int_sts_reg & BIT9))
+		int_sts |= VPP_INT_GOVRH_VBIS;
+	if ((int_enable_reg & BIT8) && (int_sts_reg & BIT8))
+		int_sts |= VPP_INT_GOVRH_PVBI;
 #endif
 #ifdef WMT_FTBLK_GOVRH
-	if (vppm_regs->int_en.b.govrh2_pvbi && vppm_regs->int_sts.b.govrh2_pvbi)
-		int_sts |= VPP_INT_GOVRH2_PVBI;
-	if (vppm_regs->int_en.b.govrh2_vbis && vppm_regs->int_sts.b.govrh2_vbis)
-		int_sts |= VPP_INT_GOVRH2_VBIS;
-	if (vppm_regs->int_en.b.govrh2_vbie && vppm_regs->int_sts.b.govrh2_vbie)
+	if ((int_enable_reg & BIT14) && (int_sts_reg & BIT14))
 		int_sts |= VPP_INT_GOVRH2_VBIE;
+	if ((int_enable_reg & BIT13) && (int_sts_reg & BIT13))
+		int_sts |= VPP_INT_GOVRH2_VBIS;
+	if ((int_enable_reg & BIT12) && (int_sts_reg & BIT12))
+		int_sts |= VPP_INT_GOVRH2_PVBI;
 #endif
 	return int_sts;
 }
 
-void vppm_clean_int_status(enum vpp_int_t int_sts)
+void vppm_clean_int_status(vpp_int_t int_sts)
 {
 #ifdef WMT_FTBLK_SCL
 	if (int_sts & VPP_INT_SCL_VBIE)
-		vppm_regs->int_sts.val = BIT18;
+		vppif_reg8_out(REG_VPP_INTSTS + 0x2, 0x4);
 	if (int_sts & VPP_INT_SCL_VBIS)
-		vppm_regs->int_sts.val = BIT17;
+		vppif_reg8_out(REG_VPP_INTSTS + 0x2, 0x2);
 	if (int_sts & VPP_INT_SCL_PVBI)
-		vppm_regs->int_sts.val = BIT16;
+		vppif_reg8_out(REG_VPP_INTSTS + 0x2, 0x1);
 #endif
 #ifdef WMT_FTBLK_GOVRH
 	if (int_sts & VPP_INT_GOVRH_VBIE)
-		vppm_regs->int_sts.val = BIT10;
+		vppif_reg8_out(REG_VPP_INTSTS + 0x1, 0x4);
 	if (int_sts & VPP_INT_GOVRH_VBIS)
-		vppm_regs->int_sts.val = BIT9;
+		vppif_reg8_out(REG_VPP_INTSTS + 0x1, 0x2);
 	if (int_sts & VPP_INT_GOVRH_PVBI)
-		vppm_regs->int_sts.val = BIT8;
+		vppif_reg8_out(REG_VPP_INTSTS + 0x1, 0x1);
 #endif
 #ifdef WMT_FTBLK_GOVRH
 	if (int_sts & VPP_INT_GOVRH2_VBIE)
-		vppm_regs->int_sts.val = BIT14;
+		vppif_reg32_out(REG_VPP_INTSTS, 0x00004000);
 	if (int_sts & VPP_INT_GOVRH2_VBIS)
-		vppm_regs->int_sts.val = BIT13;
+		vppif_reg32_out(REG_VPP_INTSTS, 0x00002000);
 	if (int_sts & VPP_INT_GOVRH2_PVBI)
-		vppm_regs->int_sts.val = BIT12;
+		vppif_reg32_out(REG_VPP_INTSTS, 0x00001000);
 #endif
 }
 
@@ -164,12 +163,12 @@ void vppm_set_module_reset(vpp_mod_t mod)
 	if (mod == VPP_MOD_GOVRH)
 		value2 |= (BIT0 | BIT8 | BIT9);
 #endif
-	vppm_regs->sw_reset1.val = ~value1;
-	vppm_regs->sw_reset1.val = 0x1010101;
-	vppm_regs->sw_reset2.val = ~value2;
-	vppm_regs->sw_reset2.val = 0x1011311;
-	vppm_regs->sw_reset3.val = ~value3;
-	vppm_regs->sw_reset3.val = 0x10101;
+	vppif_reg32_out(REG_VPP_SWRST1_SEL, ~value1);
+	vppif_reg32_out(REG_VPP_SWRST1_SEL, 0x1010101);
+	vppif_reg32_out(REG_VPP_SWRST2_SEL, ~value2);
+	vppif_reg32_out(REG_VPP_SWRST2_SEL, 0x1011311);
+	vppif_reg32_out(REG_VPP_SWRST3_SEL, ~value3);
+	vppif_reg32_out(REG_VPP_SWRST3_SEL, 0x10101);
 }
 
 void vppm_reg_dump(void)
@@ -180,31 +179,31 @@ void vppm_reg_dump(void)
 	vpp_reg_dump(REG_VPP_BEGIN, REG_VPP_END - REG_VPP_BEGIN);
 
 	DPRINT("---------- VPP Interrupt ----------\n");
-	reg1 = vppm_regs->int_sts.val;
-	reg2 = vppm_regs->int_en.val;
+	reg1 = vppif_reg32_in(REG_VPP_INTSTS);
+	reg2 = vppif_reg32_in(REG_VPP_INTEN);
 	DPRINT("GOVRH PVBI(En %d,%d),VBIS(En %d,%d),VBIE(En %d,%d)\n",
-		vppm_regs->int_en.b.govrh_pvbi,
-		vppm_regs->int_sts.b.govrh_pvbi,
-		vppm_regs->int_en.b.govrh_vbis,
-		vppm_regs->int_sts.b.govrh_vbis,
-		vppm_regs->int_en.b.govrh_vbie,
-		vppm_regs->int_sts.b.govrh_vbie);
+		vppif_reg32_read(VPP_GOVRH_INTEN_PVBI),
+		vppif_reg32_read(VPP_GOVRH_INTSTS_PVBI),
+		vppif_reg32_read(VPP_GOVRH_INTEN_VBIS),
+		vppif_reg32_read(VPP_GOVRH_INTSTS_VBIS),
+		vppif_reg32_read(VPP_GOVRH_INTEN_VBIE),
+		vppif_reg32_read(VPP_GOVRH_INTSTS_VBIE));
 
 	DPRINT("GOVRH2 PVBI(En %d,%d),VBIS(En %d,%d),VBIE(En %d,%d)\n",
-		vppm_regs->int_en.b.govrh2_pvbi,
-		vppm_regs->int_sts.b.govrh2_pvbi,
-		vppm_regs->int_en.b.govrh2_vbis,
-		vppm_regs->int_sts.b.govrh2_vbis,
-		vppm_regs->int_en.b.govrh2_vbie,
-		vppm_regs->int_sts.b.govrh2_vbie);
+		vppif_reg32_read(VPP_GOVRH2_INTEN_PVBI),
+		vppif_reg32_read(VPP_GOVRH2_INTSTS_PVBI),
+		vppif_reg32_read(VPP_GOVRH2_INTEN_VBIS),
+		vppif_reg32_read(VPP_GOVRH2_INTSTS_VBIS),
+		vppif_reg32_read(VPP_GOVRH2_INTEN_VBIE),
+		vppif_reg32_read(VPP_GOVRH2_INTSTS_VBIE));
 
 	DPRINT("SCL PVBI(En %d,%d),VBIS(En %d,%d),VBIE(En %d,%d)\n",
-		vppm_regs->int_en.b.scl_pvbi,
-		vppm_regs->int_sts.b.scl_pvbi,
-		vppm_regs->int_en.b.scl_vbis,
-		vppm_regs->int_sts.b.scl_vbis,
-		vppm_regs->int_en.b.scl_vbie,
-		vppm_regs->int_sts.b.scl_vbie);
+		vppif_reg32_read(VPP_SCL_INTEN_PVBI),
+		vppif_reg32_read(VPP_SCL_INTSTS_PVBI),
+		vppif_reg32_read(VPP_SCL_INTEN_VBIS),
+		vppif_reg32_read(VPP_SCL_INTSTS_VBIS),
+		vppif_reg32_read(VPP_SCL_INTEN_VBIE),
+		vppif_reg32_read(VPP_SCL_INTSTS_VBIE));
 }
 
 #ifdef CONFIG_PM
@@ -247,9 +246,9 @@ void vppm_resume(int sts)
 
 void vppm_init(void *base)
 {
-	struct vppm_mod_t *mod_p;
+	vppm_mod_t *mod_p;
 
-	mod_p = (struct vppm_mod_t *) base;
+	mod_p = (vppm_mod_t *) base;
 
 	vppm_set_module_reset(0);
 	vppm_set_int_enable(VPP_FLAG_ENABLE, mod_p->int_catch);
@@ -258,10 +257,10 @@ void vppm_init(void *base)
 
 int vppm_mod_init(void)
 {
-	struct vppm_mod_t *mod_p;
+	vppm_mod_t *mod_p;
 
-	mod_p = (struct vppm_mod_t *) vpp_mod_register(VPP_MOD_VPPM,
-		sizeof(struct vppm_mod_t), 0);
+	mod_p = (vppm_mod_t *) vpp_mod_register(VPP_MOD_VPPM,
+		sizeof(vppm_mod_t), 0);
 	if (!mod_p) {
 		DPRINT("*E* VPP module register fail\n");
 		return -1;

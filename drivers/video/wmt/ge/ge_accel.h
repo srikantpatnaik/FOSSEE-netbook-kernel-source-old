@@ -41,6 +41,7 @@
 
 extern int vbl;
 extern int vsync;
+extern int sync2;
 
 unsigned int phy_mem_end(void);
 unsigned int phy_mem_end_sub(unsigned int size);
@@ -60,8 +61,8 @@ void ge_vo_wait_vsync(void);
 #ifdef HAVE_VPP
 #include "../vpp.h"
 extern void vpp_wait_vsync(int idx, int cnt);
-extern void wmtfb_set_mutex(struct fb_info *info, int lock);
-extern int vpp_get_info(int fbn, struct fb_var_screeninfo *var);
+extern void vpp_set_mutex(int idx, int lock);
+extern void vpp_get_info(int fbn, struct fb_var_screeninfo *var);
 extern int vpp_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
 extern int vpp_set_blank(struct fb_info *info, int blank);
 extern int vpp_set_par(struct fb_info *info);

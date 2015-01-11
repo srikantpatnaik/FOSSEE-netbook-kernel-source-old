@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/lcd.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ extern	"C" {
 
 /*-------------------- EXPORTED PRIVATE TYPES---------------------------------*/
 /* typedef  void  lcd_xxx_t;  *//*Example*/
-enum lcd_panel_t {
+typedef enum {
 	LCD_WMT_OEM,
 	LCD_CHILIN_LW0700AT9003,
 	LCD_INNOLUX_AT070TN83,
@@ -45,30 +45,23 @@ enum lcd_panel_t {
 	LCD_EKING_EK08009,
 	LCD_HANNSTAR_HSD101PFW2,
 	LCD_LVDS_1024x600,
-	LCD_GL5001W,
 	LCD_B079XAN01,
-	LCD_TPO_TJ015NC02AA,
+	LCD_BP080WX7,
 	LCD_PANEL_MAX
-};
-enum {
-	LCD_POWER_OFF = 0,
-	LCD_POWER_ON,
-};
+} lcd_panel_t;
 
 #define LCD_CAP_CLK_HI		BIT(0)
 #define LCD_CAP_HSYNC_HI	BIT(1)
 #define LCD_CAP_VSYNC_HI	BIT(2)
 #define LCD_CAP_DE_LO		BIT(3)
-struct lcd_parm_t {
+typedef struct {
 	int bits_per_pixel;
 	unsigned int capability;
 	struct fb_videomode vmode;
-	int width; /* width of picture in mm */
-	int height; /* height of picture in mm */
 
 	void (*initial)(void);
 	void (*uninitial)(void);
-};
+} lcd_parm_t;
 
 /*-------------------- EXPORTED PRIVATE VARIABLES ---------------------------*/
 #ifdef LCD_C /* allocate memory for variables only in vout.c */
@@ -79,7 +72,7 @@ struct lcd_parm_t {
 
 /* EXTERN int      lcd_xxx; *//*Example*/
 
-EXTERN struct lcd_parm_t *p_lcd;
+EXTERN lcd_parm_t *p_lcd;
 #undef EXTERN
 
 /*--------------------- EXPORTED PRIVATE MACROS ------------------------------*/
@@ -88,9 +81,9 @@ EXTERN struct lcd_parm_t *p_lcd;
 /* extern void  lcd_xxx(void); *//*Example*/
 
 int lcd_panel_register(int no, void (*get_parm)(int mode));
-struct lcd_parm_t *lcd_get_parm(enum lcd_panel_t id, unsigned int arg);
+lcd_parm_t *lcd_get_parm(lcd_panel_t id, unsigned int arg);
 void lcd_set_parm(int id, int bpp);
-struct lcd_parm_t *lcd_get_oem_parm(int resx, int resy);
+lcd_parm_t *lcd_get_oem_parm(int resx, int resy);
 void lcd_set_lvds_id(int id);
 int lcd_get_lvds_id(void);
 void lcd_set_type(int type);

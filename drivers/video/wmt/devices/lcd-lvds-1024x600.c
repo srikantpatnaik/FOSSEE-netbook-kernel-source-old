@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/lcd-lvds-1024x600.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ static void lcd_LVDS_1024x600_initial(void);
 
 /*----------------------- INTERNAL PRIVATE VARIABLES - -----------------------*/
 /* int  lcd_xxx;        *//*Example*/
-struct lcd_parm_t lcd_LVDS_1024x600_parm = {
+lcd_parm_t lcd_LVDS_1024x600_parm = {
 	.bits_per_pixel = 24,
 	.capability = LCD_CAP_VSYNC_HI,
 	.vmode = {
@@ -59,8 +59,6 @@ struct lcd_parm_t lcd_LVDS_1024x600_parm = {
 	.vmode = 0,
 	.flag = 0,
 	},
-	.width = 222,
-	.height = 125,
 	.initial = lcd_LVDS_1024x600_initial,
 };
 
@@ -75,7 +73,7 @@ static void lcd_LVDS_1024x600_initial(void)
 	/* TODO */
 }
 
-struct lcd_parm_t *lcd_LVDS_1024x600_get_parm(int arg)
+lcd_parm_t *lcd_LVDS_1024x600_get_parm(int arg)
 {
 	return &lcd_LVDS_1024x600_parm;
 }

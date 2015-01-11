@@ -18,6 +18,8 @@
  * 4F, 533, Chung-Cheng Road, Hsin-Tien, Taipei 231, R.O.C
  */
 
+/* Written by Vincent Chen, WonderMedia Technologies, Inc., 2008-2011 */
+
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/slab.h>
@@ -45,8 +47,8 @@ static unsigned int mali_cur_freq;
 
 static int on = 1;
 static int off;
-static int acpi = 1;
-static int mem_size; /* 0 MiB */
+static int acpi;
+static int mem_size = 0x100000; /* 1 MiB */
 static int debug;
 
 #define MALI_POWER_MASK 0xf
@@ -118,7 +120,7 @@ static int __init malipm_setup(char *options)
 	/* The syntax is:
 	 *     malipm=[<param>][,<param>=<val>] ...
 	 * e.g.,
-	 *     malipm=on:acpi
+	 *     malipm=on:acpi,mem_size=0x100000
 	 */
 
 	while ((this_opt = strsep(&options, ",")) != NULL) {
@@ -737,11 +739,7 @@ static int __init mali_init(void)
 	/* Power on all Mali core at bootup, otherwise Mali driver will fail
 	 * at driver/src/devicedrv/mali/common/mali_pp.c: mali_pp_reset_wait().
 	 */
-	/*
 	mali_pmu_power_up(MALI_POWER_MASK);
-	*/
-	ret = ioread32(REG_MALI400_PMU + 8);
-	printk(KERN_DEBUG "mali power on = %d\n", !ret);
 
 	return err;
 }

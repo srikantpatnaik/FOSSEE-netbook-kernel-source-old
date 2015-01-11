@@ -28,9 +28,9 @@
 #ifndef VPPM_H
 #define VPPM_H
 
-struct vppm_mod_t {
+typedef struct {
 	VPP_MOD_BASE;
-};
+} vppm_mod_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,13 +42,12 @@ extern "C" {
 #define EXTERN extern
 #endif
 
-EXTERN struct vppm_mod_t *p_vppm;
+EXTERN vppm_mod_t *p_vppm;
 
-EXTERN void vppm_set_int_enable(vpp_flag_t enable,
-	enum vpp_int_t int_bit);
-EXTERN int vppm_get_int_enable(enum vpp_int_t int_bit);
-EXTERN enum vpp_int_t vppm_get_int_status(void);
-EXTERN void vppm_clean_int_status(enum vpp_int_t int_sts);
+EXTERN void vppm_set_int_enable(vpp_flag_t enable, vpp_int_t int_bit);
+EXTERN int vppm_get_int_enable(vpp_int_t int_bit);
+EXTERN vpp_int_t vppm_get_int_status(void);
+EXTERN void vppm_clean_int_status(vpp_int_t int_sts);
 EXTERN void vppm_set_module_reset(vpp_mod_t mod_bit);
 EXTERN int vppm_mod_init(void);
 EXTERN void vppm_set_DVO_select(int govr1);

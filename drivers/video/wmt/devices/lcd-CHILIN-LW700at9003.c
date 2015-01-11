@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/lcd-CHILIN-LW700at9003.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ static void lcd_lw700at9003_power_off(void);
 
 /*----------------------- INTERNAL PRIVATE VARIABLES ------------------------*/
 /* int  lcd_xxx;        *//*Example*/
-struct lcd_parm_t lcd_lw700at9003_parm = {
+lcd_parm_t lcd_lw700at9003_parm = {
 	.bits_per_pixel = 18,
 	.capability = LCD_CAP_CLK_HI,
 	.vmode = {
@@ -61,8 +61,6 @@ struct lcd_parm_t lcd_lw700at9003_parm = {
 	.vmode = 0,
 	.flag = 0,
 	},
-	.width = 152,
-	.height = 91,
 	.initial = lcd_lw700at9003_power_on,
 	.uninitial = lcd_lw700at9003_power_off,
 };
@@ -84,7 +82,7 @@ static void lcd_lw700at9003_power_off(void)
 	/* TODO */
 }
 
-struct lcd_parm_t *lcd_lw700at9003_get_parm(int arg)
+lcd_parm_t *lcd_lw700at9003_get_parm(int arg)
 {
 	lcd_lw700at9003_parm.bits_per_pixel = arg;
 	return &lcd_lw700at9003_parm;

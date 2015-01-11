@@ -1,6 +1,21 @@
-/*
- * for backlight control on wmt platform, base on pwm_bl.c
- */
+/*++
+	linux/drivers/video/backlight/wmt_bl.c
+
+	Copyright (c) 2013  WonderMedia Technologies, Inc.
+
+	This program is free software: you can redistribute it and/or modify it under the
+	terms of the GNU General Public License as published by the Free Software Foundation,
+	either version 2 of the License, or (at your option) any later version.
+
+	This program is distributed in the hope that it will be useful, but WITHOUT
+	ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+	PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+	You should have received a copy of the GNU General Public License along with
+	this program.  If not, see <http://www.gnu.org/licenses/>.
+
+	WonderMedia Technologies, Inc.
+	10F, 529, Chung-Cheng Road, Hsin-Tien, Taipei 231, R.O.C.
+--*/
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -24,7 +39,7 @@ static struct {
 
 static int backlight_delay = 0;
 
-static struct led_trigger *logo_led;
+static struct led_trigger *genesis_led;
 static BLOCKING_NOTIFIER_HEAD(bl_chain_head);
 
 int register_bl_notifier(struct notifier_block *nb)
@@ -61,17 +76,9 @@ static void backlight_on(bool on)
 			msleep(backlight_delay);
 		}
 		gpio_direction_output(power.gpio, on ? power.active : !power.active);
-		led_trigger_event(logo_led, on ? LED_FULL : LED_OFF);
-
-        if (!on) {
-            /*
-            * delay 100 ms  between 'backlight power off' and 'lcd power off'
-            * at suspend sequence to avoid to lcd flicker
-            */
-            msleep(100);
-        }
-
+		led_trigger_event(genesis_led, on ? LED_FULL : LED_OFF);
 		old_state = on;
+
 		bl_notifier_call_chain(on ? BL_OPEN : BL_CLOSE);
 	}
 }
@@ -175,14 +182,14 @@ static int __init wmt_bl_init(void)
 	if (rc)
 		return rc;
 
-	led_trigger_register_simple("logoled", &logo_led);
+	led_trigger_register_simple("genesis", &genesis_led);
 
 	return platform_device_register(&wm8880_device_pwmbl);
 }
 
 static void __exit wmt_bl_exit(void)
 {
-	led_trigger_unregister_simple(logo_led);
+	led_trigger_unregister_simple(genesis_led);
 	platform_device_unregister(&wm8880_device_pwmbl);
 }
 

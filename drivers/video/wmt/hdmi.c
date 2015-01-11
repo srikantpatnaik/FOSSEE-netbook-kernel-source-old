@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/hdmi.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,8 @@
 /* #define CONFIG_HDMI_EDID_DISABLE */
 
 #define HDMI_I2C_FREQ	80000
+
+#define MAX_ACR_TV_NUM  128
 /*----------------------- PRIVATE TYPE  --------------------------------------*/
 /* typedef  xxxx hdmi_xxx_t; *//*Example*/
 enum hdmi_fifo_slot_t {
@@ -53,14 +55,39 @@ enum hdmi_fifo_slot_t {
 /*----------------------- INTERNAL PRIVATE VARIABLES - -----------------------*/
 /* int  hdmi_xxx;        *//*Example*/
 
-HW_REG struct hdmi_base1_regs *hdmi_regs1 = (void *) (HDMI_BASE_ADDR + 0x100);
-HW_REG struct hdmi_base2_regs *hdmi_regs2 = (void *) HDMI_BASE2_ADDR;
+/*
+Added by howayhuo
+Some TV need fix the HDMI ACR ration, otherwise these TV will show "overclock"
+Fill in the TV vendor name and TV monitor name to this list if your TV needs fix acr
+*/
+static const tv_name_t fix_acr_tv_list[] = {
+	{"TCL", "RTD2662"},  //another name: TCL L19E09
+};
 
+static tv_name_t *p_fix_acr_tv;
+
+static int fixed_acr_ration_val = 2300;
 /*--------------------- INTERNAL PRIVATE FUNCTIONS ---------------------------*/
 /* void hdmi_xxx(void); *//*Example*/
 
 /*----------------------- Function Body --------------------------------------*/
 /*---------------------------- HDMI COMMON API -------------------------------*/
+unsigned int hdmi_reg32_write(U32 offset, U32 mask, U32 shift, U32 val)
+{
+	unsigned int new_val;
+
+	new_val = (vppif_reg32_in(offset) & ~(mask))
+			| (((val) << (shift)) & mask);
+	if (offset == REG_HDMI_GENERAL_CTRL) {
+		new_val &= ~(BIT24 | BIT25 | BIT26);
+		new_val |= g_vpp.hdmi_ctrl;
+		DBG_MSG("[HDMI] reg32_wr 0x%x ctrl 0x%x\n",
+					new_val, g_vpp.hdmi_ctrl);
+	}
+	vppif_reg32_out(offset, new_val);
+	return new_val;
+}
+
 unsigned char hdmi_ecc(unsigned char *buf, int bit_cnt)
 {
 	#define HDMI_CRC_LEN	9
@@ -118,54 +145,52 @@ void hdmi_set_power_down(int pwrdn)
 {
 	DBG_DETAIL("(%d)\n", pwrdn);
 
-	if ((hdmi_regs2->test.b.pd == 0) && (pwrdn == 0))
+	if ((vppif_reg32_read(HDMI_PD) == 0) && (pwrdn == 0)) {
 		return; /* avoid HDMI reset */
+	}
 
-	hdmi_regs2->status.b.internal_ldo = (pwrdn) ? 0 : 1;
-	hdmi_regs2->test.b.pd = pwrdn;
+	vppif_reg32_write(HDMI_INTERNAL_LDO, (pwrdn) ? 0 : 1);
+	vppif_reg32_write(HDMI_PD, pwrdn);
 	if (!pwrdn) {
-		hdmi_regs2->dftset2.b.reset_pll = 1;
+		vppif_reg32_write(HDMI_RESET_PLL, 1);
 		mdelay(1);
-		hdmi_regs2->dftset2.b.reset_pll = 0;
+		vppif_reg32_write(HDMI_RESET_PLL, 0);
 	}
 	mdelay(1);
-	hdmi_regs2->test2.b.pd_l2ha = pwrdn;
+	vppif_reg32_write(HDMI_PD_L2HA, pwrdn);
 }
 
 int hdmi_get_power_down(void)
 {
-	return hdmi_regs2->test.b.pd;
+	return vppif_reg32_read(HDMI_PD);
 }
 
 void hdmi_set_enable(vpp_flag_t enable)
 {
-	hdmi_regs1->general_ctrl.b.enable = enable;
-	hdmi_regs1->general_ctrl.b.vsync_enable = 1; /* for write only */
-	hdmi_regs2->test2.b.mode = (enable) ? 0 : 1;
+	hdmi_reg32_write(HDMI_ENABLE, enable);
+	vppif_reg32_write(HDMI_MODE, (enable) ? 0 : 1);
 }
 
 void hdmi_set_avmute(vpp_flag_t mute)
 {
-	hdmi_regs1->aud_insert_ctrl.b.avmute_set_enable = mute;
+	vppif_reg32_write(HDMI_AVMUTE_SET_ENABLE, mute);
 }
 
 void hdmi_set_dvi_enable(vpp_flag_t enable)
 {
-	hdmi_regs1->general_ctrl.b.dvi_mode_enable = enable;
-	hdmi_regs1->general_ctrl.b.vsync_enable = 1; /* for write only */
+	hdmi_reg32_write(HDMI_DVI_MODE_ENABLE, enable);
 }
 
 void hdmi_set_sync_low_active(vpp_flag_t hsync, vpp_flag_t vsync)
 {
-	hdmi_regs1->general_ctrl.b.hsync_low_active = hsync;
-	hdmi_regs1->general_ctrl.b.vsync_low_active = vsync;
-	hdmi_regs1->general_ctrl.b.vsync_enable = 1; /* for write only */
+	hdmi_reg32_write(HDMI_HSYNC_LOW_ACTIVE, hsync);
+	hdmi_reg32_write(HDMI_VSYNC_LOW_ACTIVE, vsync);
 }
 
 void hdmi_get_sync_polar(int *hsync_hi, int *vsync_hi)
 {
-	*hsync_hi = (hdmi_regs1->general_ctrl.b.hsync_low_active) ? 0 : 1;
-	*vsync_hi = (hdmi_regs1->general_ctrl.b.vsync_low_active) ? 0 : 1;
+	*hsync_hi = (vppif_reg32_read(HDMI_HSYNC_LOW_ACTIVE)) ? 0 : 1;
+	*vsync_hi = (vppif_reg32_read(HDMI_VSYNC_LOW_ACTIVE)) ? 0 : 1;
 }
 
 void hdmi_set_output_colfmt(vdo_color_fmt colfmt)
@@ -185,16 +210,15 @@ void hdmi_set_output_colfmt(vdo_color_fmt colfmt)
 		val = 2;
 		break;
 	}
-	hdmi_regs1->general_ctrl.b.convert_yuv422 = (val == 2) ? 1 : 0;
-	hdmi_regs1->general_ctrl.b.output_format = val;
-	hdmi_regs1->general_ctrl.b.vsync_enable = 1; /* for write only */
+	hdmi_reg32_write(HDMI_CONVERT_YUV422, (val == 2) ? 1 : 0);
+	hdmi_reg32_write(HDMI_OUTPUT_FORMAT, val);
 }
 
 vdo_color_fmt hdmi_get_output_colfmt(void)
 {
 	unsigned int val;
 
-	val = hdmi_regs1->general_ctrl.b.output_format;
+	val = vppif_reg32_read(HDMI_OUTPUT_FORMAT);
 	switch (val) {
 	default:
 	case 0:
@@ -211,15 +235,15 @@ int hdmi_get_plugin(void)
 {
 	int plugin;
 
-	if (hdmi_regs1->hotplug_detect.b.in_enable) {
-		plugin = hdmi_regs1->hotplug_detect.b.sts;
+	if (vppif_reg32_read(HDMI_HOTPLUG_IN_INT)) {
+		  plugin = vppif_reg32_read(HDMI_HOTPLUG_IN);
 	} else {
-		int tre_en;
+		  int tre_en;
 
-		tre_en = hdmi_regs2->test.b.tre_en;
-		hdmi_regs2->test.b.tre_en = 0;
-		plugin = hdmi_regs2->detect.b.rsen;
-		hdmi_regs2->test.b.tre_en = tre_en;
+		  tre_en = vppif_reg32_read(HDMI_TRE_EN);
+		  vppif_reg32_write(HDMI_TRE_EN, 0);
+		  plugin = vppif_reg32_read(HDMI_RSEN);
+		  vppif_reg32_write(HDMI_TRE_EN, tre_en);
 	}
 	return plugin;
 }
@@ -228,20 +252,20 @@ int hdmi_get_plug_status(void)
 {
 	int reg;
 
-	reg = hdmi_regs1->hotplug_detect.val;
+	reg = vppif_reg32_in(REG_HDMI_HOTPLUG_DETECT);
 	return reg & 0x3000000;
 }
 
 void hdmi_clear_plug_status(void)
 {
-	hdmi_regs1->hotplug_detect.b.in_sts = 1;
-	hdmi_regs1->hotplug_detect.b.out_sts = 1;
+	vppif_reg32_write(HDMI_HOTPLUG_IN_STS, 1);
+	vppif_reg32_write(HDMI_HOTPLUG_OUT_STS, 1);
 }
 
 void hdmi_enable_plugin(int enable)
 {
-	hdmi_regs1->hotplug_detect.b.out_enable = enable;
-	hdmi_regs1->hotplug_detect.b.in_enable = enable;
+	vppif_reg32_write(HDMI_HOTPLUG_OUT_INT, enable);
+	vppif_reg32_write(HDMI_HOTPLUG_IN_INT, enable);
 }
 
 void hdmi_write_fifo(enum hdmi_fifo_slot_t no, unsigned int *buf, int cnt)
@@ -264,11 +288,12 @@ void hdmi_write_fifo(enum hdmi_fifo_slot_t no, unsigned int *buf, int cnt)
 	DPRINT("\n[HDMI] AVI info package end\n");
 }
 #endif
-	hdmi_regs1->fifo_ctrl.val = (no << 8);
+
+	vppif_reg32_out(REG_HDMI_FIFO_CTRL, (no << 8));
 	cnt = (cnt + 3) / 4;
 	for (i = 0; i < cnt; i++)
-		hdmi_regs1->wr_fifo_addr[i] = buf[i];
-	hdmi_regs1->fifo_ctrl.b.wr_strobe = 1;
+		vppif_reg32_out(REG_HDMI_WR_FIFO_ADDR + 4 * i, buf[i]);
+	vppif_reg32_write(HDMI_INFOFRAME_WR_STROBE, 1);
 }
 
 void hdmi_read_fifo(enum hdmi_fifo_slot_t no, unsigned int *buf, int cnt)
@@ -279,16 +304,16 @@ void hdmi_read_fifo(enum hdmi_fifo_slot_t no, unsigned int *buf, int cnt)
 	if (no > HDMI_FIFO_SLOT_MAX)
 		return;
 
-	rdy = hdmi_regs1->infoframe_ctrl.b.fifo1_rdy;
-	hdmi_regs1->infoframe_ctrl.b.fifo1_rdy = 0;
+	rdy = vppif_reg32_read(HDMI_INFOFRAME_FIFO1_RDY);
+	vppif_reg32_write(HDMI_INFOFRAME_FIFO1_RDY, 0);
 
 	no = no - 1;
-	hdmi_regs1->fifo_ctrl.val = (no << 8);
-	hdmi_regs1->fifo_ctrl.b.rd_strobe = 1;
+	vppif_reg32_out(REG_HDMI_FIFO_CTRL, (no << 8));
+	vppif_reg32_write(HDMI_INFOFRAME_RD_STROBE, 1);
 	cnt = (cnt + 3) / 4;
 	for (i = 0; i < cnt; i++)
-		buf[i] = hdmi_regs1->rd_fifo_addr[i];
-	hdmi_regs1->infoframe_ctrl.b.fifo1_rdy = rdy;
+		buf[i] = vppif_reg32_in(REG_HDMI_RD_FIFO_ADDR + 4 * i);
+	vppif_reg32_write(HDMI_INFOFRAME_FIFO1_RDY, rdy);
 #ifdef DEBUG
 {
 	char *ptr;
@@ -335,14 +360,14 @@ int hdmi_DDC_check_status(unsigned int checkbits, int condition)
 	udelay(HDMI_DDC_DELAY);
 
 	if (condition) { /* wait 1 --> 0 */
-		while ((hdmi_regs1->i2c_ctrl2.val & checkbits)
+		while ((vppif_reg32_in(REG_HDMI_I2C_CTRL2) & checkbits)
 			&& (i < maxloop)) {
 			udelay(HDMI_DDC_CHK_DELAY);
 			if (++i == maxloop)
 				status = 0;
 		}
 	} else { /* wait 0 --> 1 */
-		while (!(hdmi_regs1->i2c_ctrl2.val & checkbits)
+		while (!(vppif_reg32_in(REG_HDMI_I2C_CTRL2) & checkbits)
 			&& (i < maxloop)) {
 			udelay(HDMI_DDC_CHK_DELAY);
 			if (++i == maxloop)
@@ -353,7 +378,7 @@ int hdmi_DDC_check_status(unsigned int checkbits, int condition)
 	if ((status == 0) && (checkbits != HDMI_STATUS_SW_READ)) {
 		unsigned int reg;
 
-		reg = hdmi_regs1->i2c_ctrl2.val;
+		reg = vppif_reg32_in(REG_HDMI_I2C_CTRL2);
 		DBG_DETAIL("[HDMI] status timeout check 0x%x,wait to %s\n",
 			checkbits, (condition) ? "0" : "1");
 		DBG_DETAIL("[HDMI] 0x%x,sta %d,stop %d,wr %d,rd %d,cp %d\n",
@@ -374,15 +399,15 @@ void hdmi_DDC_set_freq(unsigned int hz)
 	clock = 25000000*15/100;	/* RTC clock source */
 	div = clock / hz;
 
-	hdmi_regs1->i2c_ctrl.b.i2c_clk_divider = div;
+	vppif_reg32_write(HDMI_I2C_CLK_DIVIDER, div);
 	DBG_DETAIL("[HDMI] set freq(%d,clk %d,div %d)\n", hz, clock, div);
 }
 
 void hdmi_DDC_reset(void)
 {
-	hdmi_regs1->i2c_ctrl.b.i2c_sw_reset = 1;
+	vppif_reg32_write(HDMI_I2C_SW_RESET, 1);
 	udelay(1);
-	hdmi_regs1->i2c_ctrl.b.i2c_sw_reset = 0;
+	vppif_reg32_write(HDMI_I2C_SW_RESET, 0);
 }
 
 int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
@@ -392,7 +417,7 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 	int err_cnt = 0;
 
 	DBG_DETAIL("[HDMI] read DDC(index 0x%x,len %d),reg 0x%x\n",
-		index, length, hdmi_regs1->i2c_ctrl2.val);
+		index, length, vppif_reg32_in(REG_HDMI_I2C_CTRL2));
 
 #ifdef CONFIG_HDMI_EDID_DISABLE
 	return status;
@@ -402,8 +427,7 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 	/* enhanced DDC read */
 	if (index >= 256) {
 		/* sw start, write data avail */
-		vppif_reg32_write((unsigned int) &hdmi_regs1->i2c_ctrl2,
-					BIT18 + BIT16, 16, 0x5);
+		vppif_reg32_write(REG_HDMI_I2C_CTRL2, BIT18 + BIT16, 16, 0x5);
 		udelay(HDMI_DDC_CTRL_DELAY);
 		/* wait start & wr data avail */
 		status = hdmi_DDC_check_status(HDMI_STATUS_START +
@@ -415,8 +439,8 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 		}
 
 		/* Slave address */
-		hdmi_regs1->i2c_ctrl2.b.wr_data = 0x60;
-		hdmi_regs1->i2c_ctrl2.b.wr_data_avail = 1;
+		vppif_reg32_write(HDMI_WR_DATA, 0x60);
+		vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
 		udelay(HDMI_DDC_CTRL_DELAY);
 		/* wait wr data avail */
 		status = hdmi_DDC_check_status(HDMI_STATUS_WR_AVAIL, 1);
@@ -427,8 +451,8 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 		}
 
 		/* Offset */
-		hdmi_regs1->i2c_ctrl2.b.wr_data = 0x1;
-		hdmi_regs1->i2c_ctrl2.b.wr_data_avail = 1;
+		vppif_reg32_write(HDMI_WR_DATA, 0x1);
+		vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
 		udelay(HDMI_DDC_CTRL_DELAY);
 		/* wait wr data avail */
 		status = hdmi_DDC_check_status(HDMI_STATUS_WR_AVAIL, 1);
@@ -441,7 +465,16 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 	}
 
 	/* START */
-	hdmi_regs1->i2c_ctrl2.val = 0x50000; /* start & data avail */
+#ifdef HDMI_DDC_OUT
+	vppif_reg32_out(REG_HDMI_I2C_CTRL2, 0x50000);
+#else
+#if 0
+	vppif_reg32_write(HDMI_SW_START_REQ, 1); /* sw start */
+	vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
+#endif
+	/* sw start, write data avail */
+	vppif_reg32_write(REG_HDMI_I2C_CTRL2, BIT18 + BIT16, 16, 0x5);
+#endif
 	udelay(HDMI_DDC_CTRL_DELAY);
 	/* wait start & wr data avail */
 	status = hdmi_DDC_check_status(HDMI_STATUS_START +
@@ -453,7 +486,16 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 	}
 
 	/* Slave address */
-	hdmi_regs1->i2c_ctrl2.val = 0x400A0; /* addr & data avail */
+#ifdef HDMI_DDC_OUT
+	vppif_reg32_out(REG_HDMI_I2C_CTRL2, 0x400A0);
+#else
+	vppif_reg32_write(HDMI_WR_DATA, addr);
+	udelay(HDMI_DDC_DELAY);
+	while (vppif_reg32_read(HDMI_WR_DATA) != addr)
+		;
+	udelay(HDMI_DDC_DELAY);
+	vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
+#endif
 	udelay(HDMI_DDC_CTRL_DELAY);
 	/* wait wr data avail */
 	status = hdmi_DDC_check_status(HDMI_STATUS_WR_AVAIL, 1);
@@ -464,7 +506,23 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 	}
 
 	/* Offset */
-	hdmi_regs1->i2c_ctrl2.val = (0x40000 + index); /* index & data avail */
+#ifdef HDMI_DDC_OUT
+{
+	unsigned int reg;
+
+	reg = 0x40000;
+	reg |= index;
+
+	vppif_reg32_out(REG_HDMI_I2C_CTRL2, reg);
+}
+#else
+	vppif_reg32_write(HDMI_WR_DATA, index);
+	udelay(HDMI_DDC_DELAY);
+	while (vppif_reg32_read(HDMI_WR_DATA) != index)
+		;
+	udelay(HDMI_DDC_DELAY);
+	vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
+#endif
 	udelay(HDMI_DDC_CTRL_DELAY);
 	/* wait wr data avail */
 	status = hdmi_DDC_check_status(HDMI_STATUS_WR_AVAIL, 1);
@@ -474,8 +532,19 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 		goto ddc_read_fail;
 	}
 
+/*	vppif_reg32_write(HDMI_WR_DATA,addr+1); */
+
 	/* START */
-	hdmi_regs1->i2c_ctrl2.val = 0x50000; /* start & data avail */
+#ifdef HDMI_DDC_OUT
+	vppif_reg32_out(REG_HDMI_I2C_CTRL2, 0x50000);
+#else
+#if 0
+	vppif_reg32_write(HDMI_SW_START_REQ, 1); /* sw start */
+	vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
+#endif
+	/* sw start, write data avail */
+	vppif_reg32_write(REG_HDMI_I2C_CTRL2, BIT18 + BIT16, 16, 0x5);
+#endif
 	udelay(HDMI_DDC_CTRL_DELAY);
 	/* wait start & wr data avail */
 	status = hdmi_DDC_check_status(HDMI_STATUS_START +
@@ -487,7 +556,16 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 	}
 
 	/* Slave Address + 1 */
-	hdmi_regs1->i2c_ctrl2.val = 0x400A1; /* addr(rd) & data avail */
+#ifdef HDMI_DDC_OUT
+	vppif_reg32_out(REG_HDMI_I2C_CTRL2, 0x400A1);
+#else
+	vppif_reg32_write(HDMI_WR_DATA, addr + 1);
+	udelay(HDMI_DDC_DELAY);
+	while (vppif_reg32_read(HDMI_WR_DATA) != (addr + 1))
+		;
+	udelay(HDMI_DDC_DELAY);
+	vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
+#endif
 	udelay(HDMI_DDC_CTRL_DELAY);
 	/* wait wr data avail */
 	status = hdmi_DDC_check_status(HDMI_STATUS_WR_AVAIL, 1);
@@ -499,7 +577,12 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 
 	/* Read Data */
 	for (i = 0; i < length; i++) {
-		hdmi_regs1->i2c_ctrl2.val = 0x40000; /* data avail */
+#ifdef HDMI_DDC_OUT
+		vppif_reg32_out(REG_HDMI_I2C_CTRL2, 0x40000);
+#else
+		vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
+		/* hdmi_reg32_write(HDMI_WR_DATA_AVAIL,1); */
+#endif
 		udelay(HDMI_DDC_CTRL_DELAY);
 		/* wait wr data avail */
 		status = hdmi_DDC_check_status(HDMI_STATUS_WR_AVAIL, 1);
@@ -524,16 +607,23 @@ int hdmi_DDC_read_func(char addr, int index, char *buf, int length)
 			/* break; */
 		}
 
-		*buf++ = hdmi_regs1->i2c_ctrl2.b.rd_data;
+		*buf++ = vppif_reg32_read(HDMI_RD_DATA);
 		udelay(HDMI_DDC_DELAY);
-		hdmi_regs1->i2c_ctrl2.val = 0x2000000; /* clr sw read */
+#ifdef HDMI_DDC_OUT
+		vppif_reg32_out(REG_HDMI_I2C_CTRL2, 0x2000000);
+#else
+		vppif_reg32_write(HDMI_SW_READ, 1);
+#endif
 		udelay(HDMI_DDC_DELAY);
 	}
 
 	/* STOP */
+#if 0
+	vppif_reg32_write(HDMI_SW_STOP_REQ, 1); /* sw stop */
+	vppif_reg32_write(HDMI_WR_DATA_AVAIL, 1); /* write data avail */
+#endif
 	/* sw stop, write data avail */
-	vppif_reg32_write((unsigned int) &hdmi_regs1->i2c_ctrl2.val,
-					BIT18 + BIT17, 17, 3);
+	vppif_reg32_write(REG_HDMI_I2C_CTRL2, BIT18 + BIT17, 17, 3);
 	udelay(HDMI_DDC_CTRL_DELAY);
 	/* wait start & wr data avail */
 	status = hdmi_DDC_check_status(HDMI_STATUS_STOP +
@@ -554,39 +644,24 @@ ddc_read_fail:
 int hdmi_DDC_read(char addr, int index, char *buf, int length)
 {
 	int retry = 3;
-	int ret;
-
-	DBG_MSG("(0x%x,0x%x,%d)\n", addr, index, length);
-
 	do {
-		ret = hdmi_DDC_read_func(addr, index, buf, length);
-		if (ret == 0)
+		if (hdmi_DDC_read_func(addr, index, buf, length) == 0)
 			break;
 		hdmi_DDC_reset();
-		DPRINT("[HDMI] *W* DDC reset %d\n", ret);
+		DPRINT("[HDMI] *W* DDC reset\n");
 		retry--;
 	} while (retry);
-
 	return (retry == 0) ? 1 : 0;
 }
 
 void hdmi_audio_enable(vpp_flag_t enable)
 {
-	if (hdmi_regs1->aud_enable != enable) {
-		if (!enable) {
-#ifdef CONFIG_KERNEL
-			msleep(5);
-#endif
-			if (g_vpp.hdmi_ch_change)
-				REG32_VAL(I2S_BASE_ADDR + 0x188) = 0;
-		}
-		hdmi_regs1->aud_enable = (enable) ? 1 : 0;
-	}
+	vppif_reg32_write(HDMI_AUD_ENABLE, enable);
 }
 
 void hdmi_audio_mute(vpp_flag_t enable)
 {
-	hdmi_regs1->aud_ratio.b.mute = enable;
+	vppif_reg32_write(HDMI_AUD_MUTE, enable);
 }
 
 /*----------------------- HDMI API --------------------------------------*/
@@ -638,7 +713,7 @@ void hdmi_tx_general_control_packet(int mute)
 	hdmi_write_packet(HDMI_PACKET_GENERAL_CTRL, buf, 7);
 }
 
-int hdmi_get_pic_aspect(enum hdmi_video_code_t vic)
+int hdmi_get_pic_aspect(hdmi_video_code_t vic)
 {
 	switch (vic) {
 	case HDMI_640x480p60_4x3:
@@ -663,7 +738,7 @@ int hdmi_get_pic_aspect(enum hdmi_video_code_t vic)
 
 int hdmi_get_vic(int resx, int resy, int fps, int interlace)
 {
-	struct hdmi_vic_t info;
+	hdmi_vic_t info;
 	int i;
 
 	info.resx = resx;
@@ -673,15 +748,14 @@ int hdmi_get_vic(int resx, int resy, int fps, int interlace)
 	info.option |= (vout_check_ratio_16_9(resx, resy)) ?
 				HDMI_VIC_16x9 : HDMI_VIC_4x3;
 	for (i = 0; i < HDMI_VIDEO_CODE_MAX; i++) {
-		if (memcmp(&hdmi_vic_info[i], &info,
-			sizeof(struct hdmi_vic_t)) == 0)
+		if (memcmp(&hdmi_vic_info[i], &info, sizeof(hdmi_vic_t)) == 0)
 			return i;
 	}
 	return HDMI_UNKNOW;
 }
 
 void hdmi_tx_avi_infoframe_packet(vdo_color_fmt colfmt,
-						enum hdmi_video_code_t vic)
+						hdmi_video_code_t vic)
 {
 	unsigned int header;
 	unsigned char buf[28];
@@ -732,9 +806,7 @@ void hdmi_tx_audio_infoframe_packet(int channel, int freq)
 	buf[1] = (channel - 1) + (HDMI_AUD_TYPE_REF_STM << 4);
 	buf[2] = 0x0; /* HDMI_AUD_SAMPLE_24 + (freq << 2); */
 	buf[3] = 0x00;
-	/* 0x13: RRC RLC RR RL FC LFE FR FL
-	    0x1F: FRC FLC RR RL FC LFE FR FL */
-	buf[4] = (channel == 8) ? 0x13 : 0;
+	buf[4] = 0x0;
 	buf[5] = 0x0; /* 0 db */
 	buf[0] = hdmi_checksum((unsigned char *)&header, buf, 28);
 	hdmi_write_packet(header, buf, 28);
@@ -769,191 +841,270 @@ void hdmi_tx_vendor_specific_infoframe_packet(void)
 	hdmi_write_packet(header, buf, 28);
 }
 
-#define HDMI_N_CTS_USE_TABLE
-#ifdef HDMI_N_CTS_USE_TABLE
-struct hdmi_n_cts_s {
-	unsigned int n;
-	unsigned int cts;
-};
-
-struct hdmi_n_cts_s hdmi_n_cts_table[7][11] = {
-	/* 32kHz */
-	{{ 9152, 84375 }, {4096, 37800}, {4096, 40500}, {8192, 81081},
-	{ 4096, 81000 }, {4096, 81081}, {11648, 316406}, {4096, 111375},
-	{ 11648, 632812}, {4096, 222750}, {4096, 0}},
-	/* 44.1kHz */
-	{{7007, 46875}, {6272, 42000}, {6272, 45000}, {6272, 45045},
-	{6272, 90000}, {6272, 90090}, {17836, 351562}, {6272, 123750},
-	{17836, 703125}, {6272, 247500}, {6272, 0}},
-	/* 88.2kHz */
-	{{14014, 46875}, {12544, 42000}, {12544, 45000}, {12544, 45045},
-	{12544, 90000}, {12544, 90090}, {35672, 351562}, {12544, 123750},
-	{35672, 703125}, {12544, 247500}, {12544, 0}},
-	/* 176.4kHz */
-	{{28028, 46875}, {25088, 42000}, {25088, 45000}, {25088, 45045},
-	{25088, 90000}, {25088, 90090}, {71344, 351562}, {25088, 123750},
-	{71344, 703125}, {25088, 247500}, {25088, 0}},
-	/* 48kHz */
-	{{9152, 56250}, {6144, 37800}, {6144, 40500}, {8192, 54054},
-	{6144, 81000}, {6144, 81081}, {11648, 210937}, {6144, 111375},
-	{11648, 421875}, {6144, 222750}, {6144, 0}},
-	/* 96kHz */
-	{{18304, 56250}, {12288, 37800}, {12288, 40500}, {16384, 54054},
-	{12288, 81000}, {12288,81081}, {23296, 210937}, {12288, 111375},
-	{23296, 421875}, {12288, 222750}, {12288, 0}},
-	/* 192kHz */
-	{{36608, 56250}, {24576, 37800}, {24576, 40500}, {32768, 54054},
-	{24576, 81000}, {24576, 81081}, {46592, 210937}, {24576, 111375},
-	{46592, 421875}, {24576, 222750}, {24576, 0}}
-};
-
-struct hdmi_n_cts_s *hdmi_get_n_cts(unsigned int tmds_clk,
-					unsigned int freq)
+/*
+--> Added by howayhuo.
+Some TV (example: TCL L19E09) will overclock if ACR ratio too large,
+So we need decrease the ACR ratio for some special TV
+*/
+static void print_acr(void)
 {
-	int i, j;
+	int i;
 
-	switch (freq) {
-	case 32000:
-		i = 0;
-		break;
-	case 44100:
-		i = 1;
-		break;
-	case 88200:
-		i = 2;
-		break;
-	case 176400:
-		i = 3;
-		break;
-	case 48000:
-		i = 4;
-		break;
-	case 96000:
-		i = 5;
-		break;
-	case 192000:
-		i = 6;
-		break;
-	default:
-		return 0;
-	}
+	if(p_fix_acr_tv != NULL) {
+		for(i = 0; i < MAX_ACR_TV_NUM; i++) {
+			if(strlen(p_fix_acr_tv[i].vendor_name) == 0
+				|| strlen(p_fix_acr_tv[i].monitor_name) == 0)
+			break;
 
-	switch (tmds_clk) {
-	case 25174825:
-		j = 0;
-		break;
-	case 25200000:
-		j = 1;
-		break;
-	case 27000000:
-		j = 2;
-		break;
-	case 27027000:
-		j = 3;
-		break;
-	case 54000000:
-		j = 4;
-		break;
-	case 54054000:
-		j = 5;
-		break;
-	case 74175824:
-		j = 6;
-		break;
-	case 74250000:
-		j = 7;
-		break;
-	case 148351648:
-		j = 8;
-		break;
-	case 148500000:
-		j = 9;
-		break;
-	default:
-		j = 10;
-		break;
+			if(i == 0)
+				printk("ACR TV Name:\n");
+
+			printk("  %s,%s\n", p_fix_acr_tv[i].vendor_name, p_fix_acr_tv[i].monitor_name);
+		}
 	}
-	return &hdmi_n_cts_table[i][j];
 }
-#endif
+
+static void acr_init(void)
+{
+	char buf[512] = {0};
+	int buflen = 512;
+	unsigned long val;
+	int i, j, k, tv_num;
+	int ret, to_save_vendor;
+	tv_name_t tv_name;
+
+	if(p_fix_acr_tv != NULL) {
+		kfree(p_fix_acr_tv);
+		p_fix_acr_tv = NULL;
+	}
+
+	if(wmt_getsyspara("wmt.acr.ratio", buf, &buflen) == 0) {
+		ret = strict_strtoul(buf, 10, &val);
+		if(ret) {
+			printk("[HDMI] Wrong wmt.acr.ratio value: %s\n", buf);
+			return;
+		}
+		if(val >= 0 && val < 0xFFFFF) // total 20 bits
+			fixed_acr_ration_val = (int)val;
+		else
+			printk("[HDMI] Invalid Fixed ACR Ratio: %lu\n", val);
+	}
+
+	if(fixed_acr_ration_val == 0)
+		return;
+
+	/*
+	For example: setenv wmt.acr.tv 'TCH,RTD2662;PHL,Philips 244E'
+	*/
+	if(wmt_getsyspara("wmt.acr.tv", buf, &buflen) != 0) {
+		p_fix_acr_tv = (tv_name_t *)kzalloc(sizeof(fix_acr_tv_list) + sizeof(tv_name_t), GFP_KERNEL);
+		if(p_fix_acr_tv) {
+			memcpy(p_fix_acr_tv, fix_acr_tv_list, sizeof(fix_acr_tv_list));
+			print_acr();
+		} else
+			printk("[HDMI] malloc for ACR fail. malloc len = %d\n",
+				sizeof(fix_acr_tv_list) + sizeof(tv_name_t));
+
+		return;
+	}
+
+	tv_num = 0;
+	buflen = strlen(buf);
+	if(buflen == 0)
+		return;
+
+	if(buflen == sizeof(buf)) {
+		printk("[HDMI] wmt.acr.tv too long\n");
+		return;
+	}
+
+	for(i = 0; i < buflen; i++) {
+		if(buf[i] == ',')
+			tv_num++;
+	}
+
+	/*
+	Limit TV Number
+	*/
+	if(tv_num > MAX_ACR_TV_NUM)
+		tv_num = MAX_ACR_TV_NUM;
+
+	if(tv_num == 0)
+		return;
+
+	printk("acr_tv_num = %d\n", tv_num);
+	p_fix_acr_tv = (tv_name_t *)kzalloc((tv_num + 1) * sizeof(tv_name_t), GFP_KERNEL);
+	if(!p_fix_acr_tv) {
+		printk("[HDMI] malloc for ACR fail. malloc len = %d\n",
+				sizeof(fix_acr_tv_list) + sizeof(tv_name_t));
+		return;
+	}
+	memset(&tv_name, 0, sizeof(tv_name_t));
+
+	j = 0;
+	k = 0;
+	to_save_vendor= 1;
+	for(i = 0; i < buflen + 1; i++) {
+		if(buf[i] != ',' && buf[i] != ';' && buf[i] != '\0') {
+			if(to_save_vendor) {
+				if(k < VENDOR_NAME_LEN)
+					tv_name.vendor_name[k] = buf[i];
+			} else {
+				if(k < MONITOR_NAME_LEN)
+					tv_name.monitor_name[k] = buf[i];
+			}
+			k++;
+		} else if(buf[i] == ',') {
+			to_save_vendor = 0;
+			k = 0;
+		} else {
+			if(strlen(tv_name.vendor_name) == 0 || strlen(tv_name.monitor_name) == 0) {
+				printk("[HDMI] Wrong wmt.acr.tv format\n");
+				kfree(p_fix_acr_tv);
+				p_fix_acr_tv = NULL;
+				break;
+			} else {
+				if(j < tv_num) {
+					memcpy(p_fix_acr_tv + j, &tv_name, sizeof(tv_name_t));
+					memset(&tv_name, 0, sizeof(tv_name_t));
+					j++;
+				}
+
+				if(j == tv_num)
+					break;
+			}
+
+			if(buf[i]== ';') {
+				to_save_vendor = 1;
+				k = 0;
+			} else
+				break;
+		}
+	}
+
+	print_acr();
+}
+
+void acr_exit(void)
+{
+	if(p_fix_acr_tv != NULL) {
+		kfree(p_fix_acr_tv);
+		p_fix_acr_tv = NULL;
+	}
+}
+
+static int use_fix_acr_ratio(void)
+{
+	int i;
+
+	if(fixed_acr_ration_val == 0 || p_fix_acr_tv == NULL)
+		return 0;
+
+	for(i = 0; i < MAX_ACR_TV_NUM; i++) {
+		if(strlen(p_fix_acr_tv[i].vendor_name) == 0
+			|| strlen(p_fix_acr_tv[i].monitor_name) == 0)
+			break;
+
+		if(!strcmp(edid_parsed.tv_name.vendor_name, p_fix_acr_tv[i].vendor_name)
+			&& !strcmp(edid_parsed.tv_name.monitor_name, p_fix_acr_tv[i].monitor_name)) {
+			printk("TV is \"%s %s\". Use fixed HDMI ACR Ratio: %d\n",
+				edid_parsed.tv_name.vendor_name,
+				edid_parsed.tv_name.monitor_name,
+				fixed_acr_ration_val);
+			return 1;
+		}
+	}
+
+	return 0;
+}
+/*
+<-- end added by howayhuo
+*/
 
 void hdmi_set_audio_n_cts(unsigned int freq)
 {
-	unsigned int n = 0, cts = 0;
+	unsigned int n, cts;
 
-#ifdef HDMI_N_CTS_USE_TABLE
-	struct hdmi_n_cts_s *p;
-
-	p = hdmi_get_n_cts(g_vpp.hdmi_pixel_clock, freq);
-	if (p) {
-		n = p->n;
-		cts = p->cts;
-		MSG("[HDMI] use table n %d, cts %d\n", n, cts);
-	}
-#endif
-
-	if (n == 0)
-		n = 128 * freq / 1000;
-
-	if (cts == 0) {
+	n = 128 * freq / 1000;
 #ifdef __KERNEL__
-		unsigned int tmp;
-		unsigned int pll_clk;
+{
+	unsigned int tmp;
+	unsigned int pll_clk;
 
-		pll_clk = auto_pll_divisor(DEV_I2S, GET_FREQ, 0, 0);
-		tmp = (inl(AUDREGF_BASE_ADDR + 0x70) & 0xF);
+	pll_clk = auto_pll_divisor(DEV_I2S, GET_FREQ, 0, 0);
+	tmp = (vppif_reg32_in(AUDREGF_BASE_ADDR+0x70) & 0xF);
 
-		switch (tmp) {
-		case 0 ... 4:
-			tmp = 0x01 << tmp;
-			break;
-		case 9 ... 12:
-			tmp = 3 * (0x1 << (tmp-9));
-			break;
-		default:
-			tmp = 1;
-			break;
-		}
-		{
-		unsigned long long tmp2;
-		unsigned long long div2;
-		unsigned long mod;
-
-		tmp2 = g_vpp.hdmi_pixel_clock;
-		tmp2 = tmp2 * n * tmp;
-		div2 = pll_clk;
-		mod = do_div(tmp2, div2);
-		cts = tmp2;
-		}
-		DBGMSG("[HDMI] i2s %d,cts %d,reg 0x%x\n", pll_clk, cts,
-			vppif_reg32_in(AUDREGF_BASE_ADDR + 0x70));
-#else
-		cts = (g_vpp.hdmi_pixel_clock / 1000) - 1;
-#endif
+	switch (tmp) {
+	case 0 ... 4:
+		tmp = 0x01 << tmp;
+		break;
+	case 9 ... 12:
+		tmp = 3 * (0x1 << (tmp-9));
+		break;
+	default:
+		tmp = 1;
+		break;
 	}
-	hdmi_regs1->aud_sample_rate1.b.n_20bits = n;
-	hdmi_regs1->aud_ratio.b.acr_ratio = cts - 1;
-	hdmi_regs1->aud_sample_rate2.b.cts_select = 0;
+
+	{
+	unsigned long long tmp2;
+	unsigned long long div2;
+	unsigned long mod;
+
+	tmp2 = g_vpp.hdmi_pixel_clock;
+	tmp2 = tmp2 * n * tmp;
+	div2 = pll_clk;
+	mod = do_div(tmp2, div2);
+	cts = tmp2;
+	}
+	DBGMSG("[HDMI] i2s %d,cts %d,reg 0x%x\n", pll_clk, cts,
+		vppif_reg32_in(AUDREGF_BASE_ADDR + 0x70));
+}
+
+	vppif_reg32_write(HDMI_AUD_N_20BITS, n);
+	if(use_fix_acr_ratio())
+		vppif_reg32_write(HDMI_AUD_ACR_RATIO, fixed_acr_ration_val);
+	else
+		vppif_reg32_write(HDMI_AUD_ACR_RATIO, cts - 1);
+#else
+#if 1
+	cts = g_vpp.hdmi_pixel_clock / 1000;
+#else
+	cts = vpp_get_base_clock(VPP_MOD_GOVRH) / 1000;
+#endif
+	vppif_reg32_write(HDMI_AUD_N_20BITS, n);
+	if(use_fix_acr_ratio())
+		vppif_reg32_write(HDMI_AUD_ACR_RATIO, fixed_acr_ration_val);
+	else
+		vppif_reg32_write(HDMI_AUD_ACR_RATIO, cts - 2);
+#endif
+
+#if 1	/* auto detect CTS */
+	vppif_reg32_write(HDMI_AUD_CTS_SELECT, 0);
 	cts = 0;
-	hdmi_regs1->aud_sample_rate1.b.cts_low_12bits = cts & 0xFFF;
-	hdmi_regs1->aud_sample_rate2.b.cts_hi_8bits = (cts & 0xFF000) >> 12;
+#else
+	vppif_reg32_write(HDMI_AUD_CTS_SELECT, 1);
+#endif
+	vppif_reg32_write(HDMI_AUD_CTS_LOW_12BITS, cts & 0xFFF);
+	vppif_reg32_write(HDMI_AUD_CTS_HI_8BITS, (cts & 0xFF000) >> 12);
+
 	DBGMSG("[HDMI] set audio freq %d,n %d,cts %d,tmds %d\n",
 				freq, n, cts, g_vpp.hdmi_pixel_clock);
 }
-
-void hdmi_config_audio(struct vout_audio_t *info)
+void hdmi_config_audio(vout_audio_t *info)
 {
 	unsigned int freq;
 
-	g_vpp.hdmi_audio_channel = info->channel;
-	g_vpp.hdmi_audio_freq = info->sample_rate;
+	hdmi_info.channel = info->channel;
+	hdmi_info.freq = info->sample_rate;
 
 	/* enable ARF & ARFP clock */
 	REG32_VAL(PM_CTRL_BASE_ADDR + 0x254) |= (BIT4 | BIT3);
-	hdmi_tx_audio_infoframe_packet(info->channel, info->sample_rate);
+	hdmi_tx_audio_infoframe_packet(info->channel - 1, info->sample_rate);
 	hdmi_audio_enable(VPP_FLAG_DISABLE);
-	hdmi_regs1->aud_mode.b.layout = (info->channel > 2) ? 1 : 0;
-	hdmi_regs1->aud_mode.b._2ch_eco = (info->channel > 2) ? 0 : 1;
+	vppif_reg32_write(HDMI_AUD_LAYOUT, (info->channel == 8) ? 1 : 0);
+	vppif_reg32_write(HDMI_AUD_2CH_ECO, 1);
+
 	switch (info->sample_rate) {
 	case 32000:
 		freq = 0x3;
@@ -981,20 +1132,22 @@ void hdmi_config_audio(struct vout_audio_t *info)
 		freq = 0x9;
 		break;
 	}
-	hdmi_regs1->aud_chan_status0 = (freq << 24) + 0x4;
-	hdmi_regs1->aud_chan_status1 = 0x0;
-	hdmi_regs1->aud_chan_status2 = 0xb;
-	hdmi_regs1->aud_chan_status3 = 0x0;
-	hdmi_regs1->aud_chan_status4 = 0x0;
-	hdmi_regs1->aud_chan_status5 = 0x0;
+	vppif_reg32_out(REG_HDMI_AUD_CHAN_STATUS0, (freq << 24) + 0x4);
+	vppif_reg32_out(REG_HDMI_AUD_CHAN_STATUS1, 0x0);
+	vppif_reg32_out(REG_HDMI_AUD_CHAN_STATUS2, 0xb);
+	vppif_reg32_out(REG_HDMI_AUD_CHAN_STATUS3, 0x0);
+	vppif_reg32_out(REG_HDMI_AUD_CHAN_STATUS4, 0x0);
+	vppif_reg32_out(REG_HDMI_AUD_CHAN_STATUS5, 0x0);
 
 	hdmi_set_audio_n_cts(info->sample_rate);
-	hdmi_regs1->aud_ratio.b.acr_enable = 1;
-	hdmi_regs1->aud_sample_rate2.b.aipclk_rate = 0;
-	hdmi_audio_enable(VPP_FLAG_ENABLE);
+	vppif_reg32_write(HDMI_AUD_ACR_ENABLE, VPP_FLAG_ENABLE);
+	vppif_reg32_write(HDMI_AUD_AIPCLK_RATE, 0);
+        hdmi_audio_enable(hdmi_get_plugin() ?
+                VPP_FLAG_ENABLE : VPP_FLAG_DISABLE);
+
 }
 
-void hdmi_config_video(struct hdmi_info_t *info)
+void hdmi_config_video(hdmi_info_t *info)
 {
 	hdmi_set_output_colfmt(info->outfmt);
 	hdmi_tx_avi_infoframe_packet(info->outfmt, info->vic);
@@ -1031,16 +1184,16 @@ void hdmi_set_option(unsigned int option)
 	DBG_MSG("[HDMI] set option(8-HDMI,6-AUDIO) 0x%x\n", option);
 }
 
-void hdmi_config(struct hdmi_info_t *info)
+void hdmi_config(hdmi_info_t *info)
 {
-	struct vout_audio_t audio_info;
+	vout_audio_t audio_info;
 	int h_porch;
 	int delay_cfg;
 	vpp_clock_t clock;
 
-	hdmi_regs1->ctrl.b.hden = 0;
-	hdmi_regs1->infoframe_ctrl.b.select = 0;
-	hdmi_regs1->infoframe_ctrl.b.fifo1_rdy = 0;
+	vppif_reg32_write(HDMI_HDEN, 0);
+	vppif_reg32_write(HDMI_INFOFRAME_SELECT, 0);
+	vppif_reg32_write(HDMI_INFOFRAME_FIFO1_RDY, 0);
 	hdmi_config_video(info);
 
 	govrh_get_tg(p_govrh, &clock);
@@ -1054,10 +1207,8 @@ void hdmi_config(struct hdmi_info_t *info)
 		h_porch = 1;
 	if (h_porch >= 8)
 		h_porch = 0;
-
-	hdmi_regs1->general_ctrl.b.cp_delay = delay_cfg;
-	hdmi_regs1->general_ctrl.b.vsync_enable = 1; /* for write only */
-	hdmi_regs1->infoframe_ctrl.b.horiz_blank_max_pck = h_porch;
+	hdmi_reg32_write(HDMI_CP_DELAY, delay_cfg);
+	vppif_reg32_write(HDMI_HORIZ_BLANK_MAX_PCK, h_porch);
 	DBGMSG("[HDMI] H blank max pck %d,delay %d\n", h_porch, delay_cfg);
 
 	audio_info.fmt = 16;
@@ -1065,12 +1216,13 @@ void hdmi_config(struct hdmi_info_t *info)
 	audio_info.sample_rate = info->freq;
 	hdmi_config_audio(&audio_info);
 
-	hdmi_regs1->infoframe_ctrl.b.fifo1_addr = 0;
-	hdmi_regs1->infoframe_ctrl.b.fifo1_len = 2;
-	hdmi_regs1->infoframe_ctrl.b.fifo1_rdy = 1;
+	vppif_reg32_write(HDMI_INFOFRAME_FIFO1_ADDR, 0);
+	vppif_reg32_write(HDMI_INFOFRAME_FIFO1_LEN, 2);
+	vppif_reg32_write(HDMI_INFOFRAME_FIFO1_RDY, 1);
+
 	hdmi_set_option(info->option);
-	hdmi_regs2->test.b.tre_en =
-		(g_vpp.hdmi_pixel_clock < 40000000) ? 3 : 2;
+	vppif_reg32_write(HDMI_TRE_EN,
+		(g_vpp.hdmi_pixel_clock < 40000000) ? 3 : 2);
 }
 
 /*----------------------- Module API --------------------------------------*/
@@ -1110,9 +1262,14 @@ void hdmi_get_bksv(unsigned int *bksv)
 #ifdef __KERNEL__
 void hdmi_hotplug_notify(int plug_status)
 {
-	if (g_vpp.hdmi_disable)
-		return;
-	vpp_netlink_notify_plug(VPP_VOUT_NUM_HDMI, plug_status);
+		   if (g_vpp.hdmi_disable)
+			     return;
+		   if (g_vpp.virtual_display || (g_vpp.dual_display == 0)) {
+			     vpp_netlink_notify_plug(VPP_VOUT_ALL, 0);
+			     vpp_netlink_notify_plug(VPP_VOUT_ALL, 1);
+			     return;
+		   }
+		   vpp_netlink_notify_plug(VPP_VOUT_NUM_HDMI, plug_status);
 }
 #else
 #define hdmi_hotplug_notify
@@ -1120,44 +1277,44 @@ void hdmi_hotplug_notify(int plug_status)
 
 int hdmi_check_plugin(int hotplug)
 {
-	static int last_plugin = -1;
-	int plugin;
-	int flag;
+           static int last_plugin = -1;
+           int plugin;
+           int flag;
 
-	if (g_vpp.hdmi_disable)
-		return 0;
+           if (g_vpp.hdmi_disable)
+                     return 0;
 
-	plugin = hdmi_get_plugin();
-	hdmi_clear_plug_status();
+           plugin = hdmi_get_plugin();
+           hdmi_clear_plug_status();
 #ifdef __KERNEL__
-	/* disable HDMI before change clock */
-	if (plugin == 0) {
-		hdmi_set_enable(0);
-		hdmi_set_power_down(1);
-	}
-	vpp_set_clock_enable(DEV_HDMII2C, plugin, 1);
-	vpp_set_clock_enable(DEV_HDCE, plugin, 1);
+           /* disable HDMI before change clock */
+           if (plugin == 0) {
+                     hdmi_set_enable(0);
+                     hdmi_set_power_down(1);
+           }
+           vpp_set_clock_enable(DEV_HDMII2C, plugin, 1);
+           vpp_set_clock_enable(DEV_HDCE, plugin, 1);
 
-	/* slow down clock for plugout */
-	flag = (auto_pll_divisor(DEV_HDMILVDS, GET_FREQ, 0, 0)
-			== 8000000) ? 0 : 1;
-	if ((plugin != flag) && !g_vpp.virtual_display) {
-		int pixclk;
+           /* slow down clock for plugout */
+           flag = (auto_pll_divisor(DEV_HDMILVDS, GET_FREQ, 0, 0)
+                                == 8000000) ? 0 : 1;
+           if ((plugin != flag) && !g_vpp.virtual_display) {
+                     int pixclk;
 
-		pixclk = (plugin) ? g_vpp.hdmi_pixel_clock : 8000000;
-		auto_pll_divisor(DEV_HDMILVDS, SET_PLLDIV, 0, pixclk);
-	}
+                     pixclk = (plugin) ? g_vpp.hdmi_pixel_clock : 8000000;
+                     auto_pll_divisor(DEV_HDMILVDS, SET_PLLDIV, 0, pixclk);
+           }
 #endif
-	if (last_plugin != plugin) {
-		DPRINT("[HDMI] HDMI plug%s,hotplug %d\n", (plugin) ?
-						"in" : "out", hotplug);
-		last_plugin = plugin;
-	}
-#if 0	/* Denzel test */
-	if (plugin == 0)
-		hdmi_set_dvi_enable(VPP_FLAG_ENABLE);
+           if (last_plugin != plugin) {
+                     DPRINT("[HDMI] HDMI plug%s,hotplug %d\n", (plugin) ?
+                                                                "in" : "out", hotplug);
+                     last_plugin = plugin;
+           }
+#if 0   /* Denzel test */
+           if (plugin == 0)
+                     hdmi_set_dvi_enable(VPP_FLAG_ENABLE);
 #endif
-	return plugin;
+           return plugin;
 }
 
 void hdmi_reg_dump(void)
@@ -1168,107 +1325,106 @@ void hdmi_reg_dump(void)
 
 	DPRINT("---------- HDMI common ----------\n");
 	DPRINT("enable %d,hden %d,reset %d,dvi %d\n",
-		hdmi_regs1->general_ctrl.b.enable,
-		hdmi_regs1->ctrl.b.hden,
-		hdmi_regs1->general_ctrl.b.reset,
-		hdmi_regs1->general_ctrl.b.dvi_mode_enable);
+		vppif_reg32_read(HDMI_ENABLE), vppif_reg32_read(HDMI_HDEN),
+		vppif_reg32_read(HDMI_RESET),
+		vppif_reg32_read(HDMI_DVI_MODE_ENABLE));
 	DPRINT("colfmt %d,conv 422 %d,hsync low %d,vsync low %d\n",
-		hdmi_regs1->general_ctrl.b.output_format,
-		hdmi_regs1->general_ctrl.b.convert_yuv422,
-		hdmi_regs1->general_ctrl.b.hsync_low_active,
-		hdmi_regs1->general_ctrl.b.vsync_low_active);
+		vppif_reg32_read(HDMI_OUTPUT_FORMAT),
+		vppif_reg32_read(HDMI_CONVERT_YUV422),
+		vppif_reg32_read(HDMI_HSYNC_LOW_ACTIVE),
+		vppif_reg32_read(HDMI_VSYNC_LOW_ACTIVE));
 	DPRINT("dbg bus sel %d,state mach %d\n",
-		hdmi_regs1->general_ctrl.b.dbg_bus_select,
-		hdmi_regs1->general_ctrl.b.state_machine_status);
+		vppif_reg32_read(HDMI_DBG_BUS_SELECT),
+		vppif_reg32_read(HDMI_STATE_MACHINE_STATUS));
 	DPRINT("eep reset %d,encode %d,eess %d\n",
-		hdmi_regs1->ctrl.b.eeprom_reset,
-		hdmi_regs1->ctrl.b.encode_enable,
-		hdmi_regs1->ctrl.b.eess_enable);
+		vppif_reg32_read(HDMI_EEPROM_RESET),
+		vppif_reg32_read(HDMI_ENCODE_ENABLE),
+		vppif_reg32_read(HDMI_EESS_ENABLE));
 	DPRINT("verify pj %d,auth test %d,cipher %d\n",
-		hdmi_regs1->ctrl.b.verify_pj_enable,
-		hdmi_regs1->ctrl.b.auth_test_key,
-		hdmi_regs1->ctrl.b.cipher_1_1);
-	DPRINT("preamble %d\n", hdmi_regs1->ctrl.b.preamble);
+		vppif_reg32_read(HDMI_VERIFY_PJ_ENABLE),
+		vppif_reg32_read(HDMI_AUTH_TEST_KEY),
+		vppif_reg32_read(HDMI_CIPHER_1_1));
+	DPRINT("preamble %d\n", vppif_reg32_read(HDMI_PREAMBLE));
 
 	DPRINT("---------- HDMI hotplug ----------\n");
-	DPRINT("plug %s\n", (hdmi_regs1->hotplug_detect.b.sts) ? "in" : "out");
+	DPRINT("plug %s\n", vppif_reg32_read(HDMI_HOTPLUG_IN) ? "in" : "out");
 	DPRINT("plug in enable %d, status %d\n",
-		hdmi_regs1->hotplug_detect.b.in_enable,
-		hdmi_regs1->hotplug_detect.b.in_sts);
+		vppif_reg32_read(HDMI_HOTPLUG_IN_INT),
+		vppif_reg32_read(HDMI_HOTPLUG_IN_STS));
 	DPRINT("plug out enable %d, status %d\n",
-		hdmi_regs1->hotplug_detect.b.out_enable,
-		hdmi_regs1->hotplug_detect.b.out_sts);
+		vppif_reg32_read(HDMI_HOTPLUG_OUT_INT),
+		vppif_reg32_read(HDMI_HOTPLUG_OUT_STS));
 	DPRINT("debounce detect %d,sample %d\n",
-		hdmi_regs1->hotplug_debounce.b.detect,
-		hdmi_regs1->hotplug_debounce.b.sample);
+		vppif_reg32_read(HDMI_DEBOUNCE_DETECT),
+		vppif_reg32_read(HDMI_DEBOUNCE_SAMPLE));
 
 	DPRINT("---------- I2C ----------\n");
 	DPRINT("enable %d,exit FSM %d,key read %d\n",
-		hdmi_regs1->ctrl.b.i2c_enable,
-		hdmi_regs1->i2c_ctrl.b.force_exit_fsm,
-		hdmi_regs1->i2c_ctrl.b.key_read_word);
+		vppif_reg32_read(HDMI_I2C_ENABLE),
+		vppif_reg32_read(HDMI_FORCE_EXIT_FSM),
+		vppif_reg32_read(HDMI_KEY_READ_WORD));
 	DPRINT("clk divid %d,rd data 0x%x,wr data 0x%x\n",
-		hdmi_regs1->i2c_ctrl.b.i2c_clk_divider,
-		hdmi_regs1->i2c_ctrl2.b.rd_data,
-		hdmi_regs1->i2c_ctrl2.b.wr_data);
+		vppif_reg32_read(HDMI_I2C_CLK_DIVIDER),
+		vppif_reg32_read(HDMI_RD_DATA),
+		vppif_reg32_read(HDMI_WR_DATA));
 	DPRINT("start %d,stop %d,wr avail %d\n",
-		hdmi_regs1->i2c_ctrl2.b.sw_start_req,
-		hdmi_regs1->i2c_ctrl2.b.sw_stop_req,
-		hdmi_regs1->i2c_ctrl2.b.wr_data_avail);
+		vppif_reg32_read(HDMI_SW_START_REQ),
+		vppif_reg32_read(HDMI_SW_STOP_REQ),
+		vppif_reg32_read(HDMI_WR_DATA_AVAIL));
 	DPRINT("status %d,sw read %d,sw i2c req %d\n",
-		hdmi_regs1->i2c_ctrl2.b.i2c_status,
-		hdmi_regs1->i2c_ctrl2.b.sw_read,
-		hdmi_regs1->i2c_ctrl2.b.sw_i2c_req);
+		vppif_reg32_read(HDMI_I2C_STATUS),
+		vppif_reg32_read(HDMI_SW_READ),
+		vppif_reg32_read(HDMI_SW_I2C_REQ));
 
 	DPRINT("---------- AUDIO ----------\n");
 	DPRINT("enable %d,sub pck %d,spflat %d\n",
-		hdmi_regs1->aud_enable,
-		hdmi_regs1->aud_mode.b.sub_packet,
-		hdmi_regs1->aud_mode.b.spflat);
+		vppif_reg32_read(HDMI_AUD_ENABLE),
+		vppif_reg32_read(HDMI_AUD_SUB_PACKET),
+		vppif_reg32_read(HDMI_AUD_SPFLAT));
 	DPRINT("aud pck insert reset %d,enable %d,delay %d\n",
-		hdmi_regs1->aud_insert_ctrl.b.pck_insert_reset,
-		hdmi_regs1->aud_insert_ctrl.b.pck_insert_enable,
-		hdmi_regs1->aud_insert_ctrl.b.insert_delay);
+		vppif_reg32_read(HDMI_AUD_PCK_INSERT_RESET),
+		vppif_reg32_read(HDMI_AUD_PCK_INSERT_ENABLE),
+		vppif_reg32_read(HDMI_AUD_INSERT_DELAY));
 	DPRINT("avmute set %d,clr %d,pixel repete %d\n",
-		hdmi_regs1->aud_insert_ctrl.b.avmute_set_enable,
-		hdmi_regs1->aud_insert_ctrl.b.avmute_clr_enable,
-		hdmi_regs1->aud_insert_ctrl.b.pixel_repetition);
+		vppif_reg32_read(HDMI_AVMUTE_SET_ENABLE),
+		vppif_reg32_read(HDMI_AVMUTE_CLR_ENABLE),
+		vppif_reg32_read(HDMI_AUD_PIXEL_REPETITION));
 	DPRINT("acr ratio %d,acr enable %d,mute %d\n",
-		hdmi_regs1->aud_ratio.b.acr_ratio,
-		hdmi_regs1->aud_ratio.b.acr_enable,
-		hdmi_regs1->aud_ratio.b.mute);
+		vppif_reg32_read(HDMI_AUD_ACR_RATIO),
+		vppif_reg32_read(HDMI_AUD_ACR_ENABLE),
+		vppif_reg32_read(HDMI_AUD_MUTE));
 	DPRINT("layout %d,pwr save %d,n 20bits %d\n",
-		hdmi_regs1->aud_mode.b.layout,
-		hdmi_regs1->aud_mode.b.pwr_saving,
-		hdmi_regs1->aud_sample_rate1.b.n_20bits);
+		vppif_reg32_read(HDMI_AUD_LAYOUT),
+		vppif_reg32_read(HDMI_AUD_PWR_SAVING),
+		vppif_reg32_read(HDMI_AUD_N_20BITS));
 	DPRINT("cts low 12 %d,hi 8 %d,cts sel %d\n",
-		hdmi_regs1->aud_sample_rate1.b.cts_low_12bits,
-		hdmi_regs1->aud_sample_rate2.b.cts_hi_8bits,
-		hdmi_regs1->aud_sample_rate2.b.cts_select);
-	DPRINT("aipclk rate %d\n", hdmi_regs1->aud_sample_rate2.b.aipclk_rate);
+		vppif_reg32_read(HDMI_AUD_CTS_LOW_12BITS),
+		vppif_reg32_read(HDMI_AUD_CTS_HI_8BITS),
+		vppif_reg32_read(HDMI_AUD_CTS_SELECT));
+	DPRINT("aipclk rate %d\n", vppif_reg32_read(HDMI_AUD_AIPCLK_RATE));
 
 	DPRINT("---------- INFOFRAME ----------\n");
 	DPRINT("sel %d,hor blank pck %d\n",
-		hdmi_regs1->infoframe_ctrl.b.select,
-		hdmi_regs1->infoframe_ctrl.b.horiz_blank_max_pck);
+		vppif_reg32_read(HDMI_INFOFRAME_SELECT),
+		vppif_reg32_read(HDMI_HORIZ_BLANK_MAX_PCK));
 	DPRINT("fifo1 ready %d,addr 0x%x,len %d\n",
-		hdmi_regs1->infoframe_ctrl.b.fifo1_rdy,
-		hdmi_regs1->infoframe_ctrl.b.fifo1_addr,
-		hdmi_regs1->infoframe_ctrl.b.fifo1_len);
+		vppif_reg32_read(HDMI_INFOFRAME_FIFO1_RDY),
+		vppif_reg32_read(HDMI_INFOFRAME_FIFO1_ADDR),
+		vppif_reg32_read(HDMI_INFOFRAME_FIFO1_LEN));
 	DPRINT("fifo2 ready %d,addr 0x%x,len %d\n",
-		hdmi_regs1->infoframe_ctrl.b.fifo2_rdy,
-		hdmi_regs1->infoframe_ctrl.b.fifo2_addr,
-		hdmi_regs1->infoframe_ctrl.b.fifo2_len);
+		vppif_reg32_read(HDMI_INFOFRAME_FIFO2_RDY),
+		vppif_reg32_read(HDMI_INFOFRAME_FIFO2_ADDR),
+		vppif_reg32_read(HDMI_INFOFRAME_FIFO2_LEN));
 	DPRINT("wr strobe %d,rd strobe %d,fifo addr %d\n",
-		hdmi_regs1->fifo_ctrl.b.wr_strobe,
-		hdmi_regs1->fifo_ctrl.b.rd_strobe,
-		hdmi_regs1->fifo_ctrl.b.addr);
+		vppif_reg32_read(HDMI_INFOFRAME_WR_STROBE),
+		vppif_reg32_read(HDMI_INFOFRAME_RD_STROBE),
+		vppif_reg32_read(HDMI_INFOFRAME_FIFO_ADDR));
 
 	{
 	int i;
 	unsigned int buf[32];
 
-	for (i = 0; i <= hdmi_regs1->infoframe_ctrl.b.fifo1_len; i++) {
+	for (i = 0; i <= vppif_reg32_read(HDMI_INFOFRAME_FIFO1_LEN); i++) {
 		DPRINT("----- infoframe %d -----\n", i);
 		hdmi_read_fifo(i, buf, 32);
 		vpp_reg_dump((unsigned int) buf, 32);
@@ -1277,14 +1433,15 @@ void hdmi_reg_dump(void)
 
 	DPRINT("---------- HDMI test ----------\n");
 	DPRINT("ch0 enable %d, data 0x%x\n",
-		hdmi_regs1->channel_test.b.ch0_enable,
-		hdmi_regs1->channel_test.b.ch0_data);
+		vppif_reg32_read(HDMI_CH0_TEST_MODE_ENABLE),
+		vppif_reg32_read(HDMI_CH0_TEST_DATA));
 	DPRINT("ch1 enable %d, data 0x%x\n",
-		hdmi_regs1->channel_test.b.ch1_enable,
-		hdmi_regs1->channel_test.b.ch1_data);
+		vppif_reg32_read(HDMI_CH1_TEST_MODE_ENABLE),
+		vppif_reg32_read(HDMI_CH1_TEST_DATA));
 	DPRINT("ch2 enable %d, data 0x%x\n",
-		hdmi_regs1->hotplug_detect.b.ch2_enable,
-		hdmi_regs1->hotplug_detect.b.ch2_data);
+		vppif_reg32_read(HDMI_CH2_TEST_MODE_ENABLE),
+		vppif_reg32_read(HDMI_CH2_TEST_DATA));
+
 	if (hdmi_cp)
 		hdmi_cp->dump();
 }
@@ -1295,12 +1452,13 @@ static unsigned int *hdmi_pm_bk2;
 static unsigned int hdmi_pm_enable;
 static unsigned int hdmi_pm_enable2;
 static int hdmi_plug_enable = 0xFF;
+extern struct switch_dev vpp_sdev;
 static int hdmi_resume_plug_cnt;
 #define HDMI_RESUME_PLUG_MS	50
 #define HDMI_RESUME_PLUG_CNT	20
 static void hdmi_do_resume_plug(struct work_struct *ptr)
 {
-	struct vout_t *vo;
+	vout_t *vo;
 	int plugin;
 	struct delayed_work *dwork = to_delayed_work(ptr);
 
@@ -1309,7 +1467,7 @@ static void hdmi_do_resume_plug(struct work_struct *ptr)
 	vout_change_status(vo, VPP_VOUT_STS_PLUGIN, plugin);
 	if (plugin)
 		hdmi_hotplug_notify(1);
-	hdmi_resume_plug_cnt--;
+	hdmi_resume_plug_cnt --;
 	if (hdmi_resume_plug_cnt && (vpp_sdev.state == 0))
 		schedule_delayed_work(dwork,
 			msecs_to_jiffies(HDMI_RESUME_PLUG_MS));
@@ -1323,14 +1481,13 @@ void hdmi_suspend(int sts)
 	switch (sts) {
 	case 0:	/* disable module */
 		cancel_delayed_work_sync(&hdmi_resume_work);
-		hdmi_pm_enable = hdmi_regs1->general_ctrl.b.enable;
-		hdmi_regs1->general_ctrl.b.enable = 0;
-		hdmi_regs1->general_ctrl.b.vsync_enable = 1; /* for wr only */
-		hdmi_pm_enable2 = hdmi_regs1->ctrl.b.hden;
-		hdmi_regs1->ctrl.b.hden = 0;
+		hdmi_pm_enable = vppif_reg32_read(HDMI_ENABLE);
+		hdmi_reg32_write(HDMI_ENABLE, 0);
+		hdmi_pm_enable2 = vppif_reg32_read(HDMI_HDEN);
+		vppif_reg32_write(HDMI_HDEN, 0);
 		if (hdmi_plug_enable == 0xFF)
 			hdmi_plug_enable =
-				hdmi_regs1->hotplug_detect.b.out_enable;
+				vppif_reg32_read(HDMI_HOTPLUG_OUT_INT);
 		hdmi_enable_plugin(0);
 		break;
 	case 1: /* disable tg */
@@ -1340,6 +1497,7 @@ void hdmi_suspend(int sts)
 			(REG_HDMI_END - REG_HDMI_BEGIN));
 		hdmi_pm_bk2 = vpp_backup_reg(REG_HDMI2_BEGIN,
 			(REG_HDMI2_END - REG_HDMI2_BEGIN));
+	 	switch_set_state(&vpp_sdev, 0);
 		hdmi_resume_plug_cnt = 20;
 		break;
 	default:
@@ -1353,7 +1511,6 @@ void hdmi_resume(int sts)
 	vo_hdmi_set_clock(1);
 	switch (sts) {
 	case 0:	/* restore register */
-		switch_set_state(&vpp_sdev, 0);		
 		vpp_restore_reg(REG_HDMI_BEGIN,
 			(REG_HDMI_END - REG_HDMI_BEGIN), hdmi_pm_bk);
 		vpp_restore_reg(REG_HDMI2_BEGIN,
@@ -1365,9 +1522,8 @@ void hdmi_resume(int sts)
 			hdmi_cp->init();
 		break;
 	case 1:	/* enable module */
-		hdmi_regs1->general_ctrl.b.enable = hdmi_pm_enable;
-		hdmi_regs1->general_ctrl.b.vsync_enable = 1; /* for wr only */
-		hdmi_regs1->ctrl.b.hden = hdmi_pm_enable2;
+		hdmi_reg32_write(HDMI_ENABLE, hdmi_pm_enable);
+		vppif_reg32_write(HDMI_HDEN, hdmi_pm_enable2);
 		break;
 	case 2: /* enable tg */
 		hdmi_check_plugin(0);
@@ -1409,8 +1565,6 @@ void hdmi_init(void)
 	hdmi_info.freq = 48000;
 	hdmi_info.option = EDID_OPT_AUDIO + EDID_OPT_HDMI;
 
-	hdmi_enable_plugin(0);
-
 	if (g_vpp.govrh_preinit) {
 		DBGMSG("[HDMI] hdmi_init for uboot logo\n");
 	} else {
@@ -1427,31 +1581,34 @@ void hdmi_init(void)
 		/* Wake3 disable pull ctrl */
 		vppif_reg32_write(GPIO_BASE_ADDR+0x480, BIT19, 19, 0);
 #endif
-		hdmi_regs2->level.b.level = 1;
-		hdmi_regs2->level.b.update = 1;
-		hdmi_regs2->igs.b.ldi_shift_left = 1;
-		hdmi_regs2->status.val = 0x0008c000;
-		hdmi_regs2->test.val = 0x00450409;
-		hdmi_regs2->test2.val = 0x00005022;
-		hdmi_regs2->test3 = (g_vpp.hdmi_sp_mode) ?
-					0x00010100 : 0x00000100;
+		vppif_reg32_write(HDMI_REG_LEVEL, 1);
+		vppif_reg32_write(HDMI_REG_UPDATE, 1);
+		vppif_reg32_write(HDMI_LDI_SHIFT_LEFT, 1);
+		vppif_reg32_out(REG_HDMI_STATUS, 0x0008c000);
+		vppif_reg32_out(REG_HDMI_TEST, 0x00450409);
+		vppif_reg32_out(REG_HDMI_TEST2, 0x00005022);
+		vppif_reg32_out(REG_HDMI_TEST3,
+			(g_vpp.hdmi_sp_mode) ? 0x00010100 : 0x00000100);
 		hdmi_set_enable(VPP_FLAG_DISABLE);
 		hdmi_set_dvi_enable(VPP_FLAG_DISABLE);
-		hdmi_regs1->ctrl.b.cipher_1_1 = 0;
+		vppif_reg32_write(HDMI_CIPHER_1_1, 0);
 
-		hdmi_regs1->tmds_ctrl.b.infoframe_sram_enable = 1;
-		hdmi_regs1->infoframe_ctrl.b.select = 0;
-		hdmi_regs1->infoframe_ctrl.b.fifo1_rdy = 0;
+		vppif_reg32_write(HDMI_INFOFRAME_SRAM_ENABLE, 1);
+		vppif_reg32_write(HDMI_INFOFRAME_SELECT, 0);
+		vppif_reg32_write(HDMI_INFOFRAME_FIFO1_RDY, 0);
 
-		hdmi_regs1->hotplug_detect.val = 0x0;
-		hdmi_regs1->channel_test.val = 0x1;
+		vppif_reg32_out(HDMI_BASE_ADDR+0x3ec, 0x0);
+		vppif_reg32_out(HDMI_BASE_ADDR+0x3e8, 0x1);
 
+	/*	vppif_reg32_write(HDMI_AUD_LAYOUT, 1); */
 		hdmi_DDC_reset();
 		hdmi_DDC_set_freq(g_vpp.hdmi_i2c_freq);
-		hdmi_regs1->ctrl.b.i2c_enable = 1;
+		vppif_reg32_write(HDMI_I2C_ENABLE, 1);
 	}
 	g_vpp.hdmi_init = 1;
 	if (hdmi_cp)
 		hdmi_cp->init();
+
+	acr_init();
 }
 #endif /* WMT_FTBLK_HDMI */

@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/vt1632.c
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ int vt1632_check_plugin(int hotplug)
 	return plugin;
 }
 
-int vt1632_init(struct vout_t *vo)
+int vt1632_init(struct vout_s *vo)
 {
 	char buf[16];
 
@@ -119,7 +119,7 @@ void vt1632_set_power_down(int enable)
 	vpp_i2c_write(VPP_DVI_I2C_ID, VT1632_ADDR, 0x8, buf, 1);
 }
 
-int vt1632_config(struct vout_info_t *info)
+int vt1632_config(vout_info_t *info)
 {
 	return 0;
 }
@@ -134,7 +134,7 @@ int vt1632_interrupt(void)
 	return vt1632_check_plugin(1);
 }
 /*----------------------- vout device plugin ---------------------------------*/
-struct vout_dev_t vt1632_vout_dev_ops = {
+vout_dev_t vt1632_vout_dev_ops = {
 	.name = "VT1632",
 	.mode = VOUT_INF_DVI,
 

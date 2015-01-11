@@ -2,7 +2,7 @@
  * linux/drivers/video/wmt/sw_i2c.h
  * WonderMedia video post processor (VPP) driver
  *
- * Copyright c 2014  WonderMedia  Technologies, Inc.
+ * Copyright c 2013  WonderMedia  Technologies, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #ifndef _SWI2C_H_
 #define _SWI2C_H_
 
-struct swi2c_reg_s {
+typedef struct {
 	unsigned int bit_mask;
 	unsigned int gpio_en;
 	unsigned int out_en;
@@ -32,17 +32,15 @@ struct swi2c_reg_s {
 	unsigned int data_out;
 	unsigned int pull_en_bit_mask;
 	unsigned int pull_en;
-};
-#define swi2c_reg_t struct swi2c_reg_s
+} swi2c_reg_t;
 
-struct swi2c_handle_s {
-	struct swi2c_reg_s *scl_reg;
-	struct swi2c_reg_s *sda_reg;
-};
-#define swi2c_handle_t struct swi2c_handle_s
+typedef struct {
+	swi2c_reg_t *scl_reg;
+	swi2c_reg_t *sda_reg;
+} swi2c_handle_t;
 
 int wmt_swi2c_read(
-	struct swi2c_handle_s *handle,
+	swi2c_handle_t *handle,
 	char addr,
 	char index,
 	char *buf,
@@ -50,14 +48,14 @@ int wmt_swi2c_read(
 );
 
 int wmt_swi2c_write(
-	struct swi2c_handle_s *handle,
+	swi2c_handle_t *handle,
 	char addr,
 	char index,
 	char *buf,
 	int cnt
 );
 
-int wmt_swi2c_check(struct swi2c_handle_s *handle);
+int wmt_swi2c_check(swi2c_handle_t *handle);
 
 #endif
 

@@ -47,13 +47,11 @@ int cec_physical_addr;
 /*---------------------------- CEC COMMON API -------------------------------*/
 
 #ifdef WMT_FTBLK_CEC
-
-struct cec_base_regs *cec_regs = (void *) CEC_BASE_ADDR;
 /*---------------------------- CEC HAL --------------------------------------*/
 void wmt_cec_tx_data(char *buf, int size)
 {
 	int i;
-	unsigned int reg;
+	unsigned int addr, reg;
 	int wait_idle;
 
 #ifdef DEBUG
@@ -69,7 +67,7 @@ void wmt_cec_tx_data(char *buf, int size)
 	}
 
 	wait_idle = 0;
-	while (cec_regs->enable.b.wr_start) {
+	while (vppif_reg32_read(CEC_WR_START)) { /* wait idle */
 		if (wait_idle >= 10) {
 			DPRINT("[CEC] wait idle timeout\n");
 			return;
@@ -79,30 +77,37 @@ void wmt_cec_tx_data(char *buf, int size)
 		return;
 	}
 
+	addr = REG_CEC_ENCODE_HEADER;
 	for (i = 0; i < size; i++) {
 		reg = (buf[i] << 4) + 0x1;
 		if (i == (size - 1))
 			reg |= BIT1;
-		cec_regs->encode_data[i].val = reg;
+		vppif_reg32_out(addr, reg);
+#ifdef DEBUG
+		DPRINT("[CEC] wr 0x%x = 0x%x\n", addr, reg);
+#endif
+		addr += 4;
 	}
-	cec_regs->encode_number.b.wr_num = (size * 10) + 0x1;
-	cec_regs->enable.b.wr_start = 1;
+	vppif_reg32_write(CEC_WR_NUM, (size * 10) + 0x1);
+	vppif_reg32_write(CEC_WR_START, 1);
 }
 
 int wmt_cec_rx_data(char *buf)
 {
 	int i, size;
-	unsigned int reg;
+	unsigned int addr, reg;
 
+	addr = REG_CEC_DECODE_HEADER;
 	for (i = 0; i < 16; i++) {
-		reg = cec_regs->decode_data[i].val;
+		reg = vppif_reg32_in(addr);
 		buf[i] = (reg & 0xFF0) >> 4;
 		if (reg & BIT1) /* EOM */
 			break;
+		addr += 4;
 	}
-	cec_regs->decode_reset.b.finish_reset = 1;
+	vppif_reg32_write(CEC_FINISH_RESET, 1);
 	mdelay(1);
-	cec_regs->decode_reset.b.finish_reset = 0;
+	vppif_reg32_write(CEC_FINISH_RESET, 0);
 	size = i + 1;
 #ifdef DEBUG
 	DPRINT("[CEC] rx data(%d):\n", size);
@@ -117,114 +122,98 @@ void wmt_cec_set_clock(void)
 {
 	#define CEC_CLOCK (1000000 / 7984)
 
-	cec_regs->wr_start_set0 = (370 * CEC_CLOCK); /* 3.7 ms */
-	cec_regs->wr_start_set1 = (450 * CEC_CLOCK); /* 4.5 ms */
-	cec_regs->wr_logic0_set0 = (150 * CEC_CLOCK); /* 1.5 ms */
-	cec_regs->wr_logic0_set1 = (240 * CEC_CLOCK); /* 2.4 ms */
-	cec_regs->wr_logic1_set0 = (60 * CEC_CLOCK); /* 0.6 ms */
-	cec_regs->wr_logic1_set1 = (240 * CEC_CLOCK); /* 2.4 ms */
-	cec_regs->rd_start_l_set0 = (350 * CEC_CLOCK); /* 3.5 ms */
-	cec_regs->rd_start_r_set0 = (390 * CEC_CLOCK); /* 3.9 ms */
-	cec_regs->rd_start_l_set1 = (430 * CEC_CLOCK); /* 4.3 ms */
-	cec_regs->rd_start_r_set1 = (470 * CEC_CLOCK); /* 4.7 ms */
-	cec_regs->rd_logic0_l_set0 = (130 * CEC_CLOCK); /* 1.3 ms */
-	cec_regs->rd_logic0_r_set0 = (170 * CEC_CLOCK); /* 1.7 ms */
-	cec_regs->rd_logic0_l_set1 = (205 * CEC_CLOCK); /* 2.05 ms*/
-	cec_regs->rd_logic0_r_set1 = (275 * CEC_CLOCK); /* 2.75 ms*/
-	cec_regs->rd_logic1_l_set0 = (40 * CEC_CLOCK); /* 0.4 ms */
-	cec_regs->rd_logic1_r_set0 = (80 * CEC_CLOCK); /* 0.8 ms */
-	cec_regs->rd_logic1_l_set1 = (205 * CEC_CLOCK); /* 2.05 ms*/
-	cec_regs->rd_logic1_r_set1 = (275 * CEC_CLOCK); /* 2.75 ms*/
-	cec_regs->rd_l_set0_error = (182 * CEC_CLOCK); /* 1.82 ms */
-	cec_regs->rd_r_set1_error = (238 * CEC_CLOCK); /* 2.38 ms */
-	cec_regs->rd_l_error = (287 * CEC_CLOCK); /* 2.87 ms */
-	cec_regs->rx_sample_l_range = (85 * CEC_CLOCK); /* 0.85 ms*/
-	cec_regs->rx_sample_r_range = (125 * CEC_CLOCK); /*1.25 ms*/
-	cec_regs->wr_set0_error = (225 * CEC_CLOCK); /* 2.25 ms */
-	cec_regs->wr_set1_error = (225 * CEC_CLOCK); /* 2.25 ms ?*/
+	vppif_reg32_out(REG_CEC_WR_START_SET0, 370 * CEC_CLOCK); /* 3.7 ms */
+	vppif_reg32_out(REG_CEC_WR_START_SET1, 450 * CEC_CLOCK); /* 4.5 ms */
+	vppif_reg32_out(REG_CEC_WR_LOGIC0_SET0, 150 * CEC_CLOCK); /* 1.5 ms */
+	vppif_reg32_out(REG_CEC_WR_LOGIC0_SET1, 240 * CEC_CLOCK); /* 2.4 ms */
+	vppif_reg32_out(REG_CEC_WR_LOGIC1_SET0, 60 * CEC_CLOCK); /* 0.6 ms */
+	vppif_reg32_out(REG_CEC_WR_LOGIC1_SET1, 240 * CEC_CLOCK); /* 2.4 ms */
+	vppif_reg32_out(REG_CEC_RD_START_L_SET0, 350 * CEC_CLOCK); /* 3.5 ms */
+	vppif_reg32_out(REG_CEC_RD_START_R_SET0, 390 * CEC_CLOCK); /* 3.9 ms */
+	vppif_reg32_out(REG_CEC_RD_START_L_SET1, 430 * CEC_CLOCK); /* 4.3 ms */
+	vppif_reg32_out(REG_CEC_RD_START_R_SET1, 470 * CEC_CLOCK); /* 4.7 ms */
+	vppif_reg32_out(REG_CEC_RD_LOGIC0_L_SET0, 130 * CEC_CLOCK); /* 1.3 ms */
+	vppif_reg32_out(REG_CEC_RD_LOGIC0_R_SET0, 170 * CEC_CLOCK); /* 1.7 ms */
+	vppif_reg32_out(REG_CEC_RD_LOGIC0_L_SET1, 205 * CEC_CLOCK); /* 2.05 ms*/
+	vppif_reg32_out(REG_CEC_RD_LOGIC0_R_SET1, 275 * CEC_CLOCK); /* 2.75 ms*/
+	vppif_reg32_out(REG_CEC_RD_LOGIC1_L_SET0, 40 * CEC_CLOCK); /* 0.4 ms */
+	vppif_reg32_out(REG_CEC_RD_LOGIC1_R_SET0, 80 * CEC_CLOCK); /* 0.8 ms */
+	vppif_reg32_out(REG_CEC_RD_LOGIC1_L_SET1, 205 * CEC_CLOCK); /* 2.05 ms*/
+	vppif_reg32_out(REG_CEC_RD_LOGIC1_R_SET1, 275 * CEC_CLOCK); /* 2.75 ms*/
+	vppif_reg32_out(REG_CEC_RD_L_SET0_ERROR, 182 * CEC_CLOCK); /* 1.82 ms */
+	vppif_reg32_out(REG_CEC_RD_R_SET1_ERROR, 238 * CEC_CLOCK); /* 2.38 ms */
+	vppif_reg32_out(REG_CEC_RD_L_ERROR, 287 * CEC_CLOCK); /* 2.87 ms */
+	vppif_reg32_out(REG_CEC_RX_SAMPLE_L_RANGE, 85 * CEC_CLOCK); /* 0.85 ms*/
+	vppif_reg32_out(REG_CEC_RX_SAMPLE_R_RANGE, 125 * CEC_CLOCK); /*1.25 ms*/
+	vppif_reg32_out(REG_CEC_WR_SET0_ERROR, 225 * CEC_CLOCK); /* 2.25 ms */
+	vppif_reg32_out(REG_CEC_WR_SET1_ERROR, 225 * CEC_CLOCK); /* 2.25 ms ?*/
 }
 
 void wmt_cec_set_logical_addr(int no, char addr, int enable)
 {
-	switch (no) {
-	case 0:
-		cec_regs->logical_addr.b.addr1 = addr;
-		cec_regs->logical_addr.b.valid1 = addr;
-		break;
-	case 1:
-		cec_regs->logical_addr.b.addr2 = addr;
-		cec_regs->logical_addr.b.valid2 = addr;
-		break;
-	case 2:
-		cec_regs->logical_addr.b.addr3 = addr;
-		cec_regs->logical_addr.b.valid3 = addr;
-		break;
-	case 3:
-		cec_regs->logical_addr.b.addr4 = addr;
-		cec_regs->logical_addr.b.valid4 = addr;
-		break;
-	case 4:
-		cec_regs->logical_addr.b.addr5 = addr;
-		cec_regs->logical_addr.b.valid5 = addr;
-		break;
-	default:
-		DPRINT("[CEC] *W* invalid %d\n", no);
-		break;
+	unsigned int mask;
+
+	if (no > 5) {
+		DPRINT("[CEC] *W* max 5\n");
+		return;
 	}
+	mask = 0xF << (4 * no);
+	vppif_reg32_write(REG_CEC_LOGICAL_ADDR, mask, 4 * no, addr);
+	mask = BIT24 << no;
+	vppif_reg32_write(REG_CEC_LOGICAL_ADDR, mask, 24 + no, enable);
 	DBGMSG("[CEC] set logical addr %d,0x%x\n", no, addr);
 }
 
 void wmt_cec_rx_enable(int enable)
 {
-	cec_regs->reject.b.next_decode = (enable) ? 0 : 1;
+	vppif_reg32_write(CEC_REJECT_NEXT_DECODE, (enable) ? 0 : 1);
 	/* GPIO4 disable GPIO function */
 	vppif_reg32_write(GPIO_BASE_ADDR + 0x40, BIT4, 4, (enable) ? 0 : 1);
 }
 
 void wmt_cec_enable_int(int no, int enable)
 {
-	if (enable)
-		cec_regs->int_enable |= (0x1 << no);
-	else
-		cec_regs->int_enable &= ~(0x1 << no);
+	vppif_reg32_write(REG_CEC_INT_ENABLE, 0x1 << no, no, enable);
 }
 
 void wmt_cec_clr_int(int sts)
 {
-	cec_regs->status.val = sts;
+	vppif_reg32_out(REG_CEC_STATUS, sts);
 }
 
 int wmt_cec_get_int(void)
 {
 	int reg;
-	reg = cec_regs->status.val;
+
+	reg = vppif_reg32_in(REG_CEC_STATUS);
 	return reg;
 }
 
 void wmt_cec_enable_loopback(int enable)
 {
 	/* 1 : read self write and all dest data */
-	cec_regs->rd_encode.b.enable = enable;
+	vppif_reg32_write(CEC_RD_ENCODE_ENABLE, enable);
 }
 
 void wmt_cec_init_hw(void)
 {
 	wmt_cec_set_clock();
-	cec_regs->wr_retry.b.retry = 3;
-	cec_regs->rx_trig_range = 2;
+	vppif_reg32_write(CEC_WR_RETRY, 3);
+	vppif_reg32_out(REG_CEC_RX_TRIG_RANGE, 2);
 
-	cec_regs->free_3x.b.free_3x = 3;
-	cec_regs->free_3x.b.free_5x = 5;
-	cec_regs->free_3x.b.free_7x = 7;
+	vppif_reg32_write(CEC_FREE_3X, 3);
+	vppif_reg32_write(CEC_FREE_5X, 5);
+	vppif_reg32_write(CEC_FREE_7X, 7);
 
-	cec_regs->comp.b.disable = 1;
-	cec_regs->handle_disable.b.err = 0;
-	cec_regs->handle_disable.b.no_ack = 0;
-	cec_regs->decode_full.b.disable = 0;
-	cec_regs->status4_disable.b.start = 1;
-	cec_regs->status4_disable.b.logic0 = 1;
-	cec_regs->status4_disable.b.logic1 = 1;
-	cec_regs->rd_encode.b.enable = 0;
+	vppif_reg32_write(CEC_COMP_DISABLE, 1);
+	vppif_reg32_write(CEC_ERR_HANDLE_DISABLE, 0);
+	vppif_reg32_write(CEC_NO_ACK_DISABLE, 0);
+	vppif_reg32_write(CEC_DECODE_FULL_DISABLE, 0);
+	vppif_reg32_write(CEC_STATUS4_START_DISABLE, 1);
+	vppif_reg32_write(CEC_STATUS4_LOGIC0_DISABLE, 1);
+	vppif_reg32_write(CEC_STATUS4_LOGIC1_DISABLE, 1);
+	/* 1 : read self write and all dest data */
+	vppif_reg32_write(CEC_RD_ENCODE_ENABLE, 0);
 }
 
 /*---------------------------- CEC API --------------------------------------*/
@@ -235,68 +224,69 @@ void wmt_cec_reg_dump(void)
 
 	DPRINT("---------- CEC Tx ----------\n");
 	DPRINT("wr start %d,wr num %d\n",
-		cec_regs->enable.b.wr_start, cec_regs->encode_number.b.wr_num);
+		vppif_reg32_read(CEC_WR_START),
+		vppif_reg32_read(CEC_WR_NUM));
 	DPRINT("wr header ack %d,EOM %d,data 0x%x\n",
-		cec_regs->encode_data[0].b.wr_data_ack,
-		cec_regs->encode_data[0].b.wr_data_eom,
-		cec_regs->encode_data[0].b.wr_data);
+		vppif_reg32_read(CEC_WR_HEADER_ACK),
+		vppif_reg32_read(CEC_WR_HEADER_EOM),
+		vppif_reg32_read(CEC_WR_HEADER_DATA));
 	DPRINT("wr data ack %d,EOM %d,data 0x%x\n",
-		cec_regs->encode_data[1].b.wr_data_ack,
-		cec_regs->encode_data[1].b.wr_data_eom,
-		cec_regs->encode_data[1].b.wr_data);
+		vppif_reg32_read(CEC_WR_DATA_ACK),
+		vppif_reg32_read(CEC_WR_DATA_EOM),
+		vppif_reg32_read(CEC_WR_DATA));
 	DPRINT("finish reset %d,wr retry %d\n",
-		cec_regs->decode_reset.b.finish_reset,
-		cec_regs->wr_retry.b.retry);
+		vppif_reg32_read(CEC_FINISH_RESET),
+		vppif_reg32_read(CEC_WR_RETRY));
 	DPRINT("---------- CEC Rx ----------\n");
 	DPRINT("rd start %d,all ack %d,finish %d\n",
-		cec_regs->decode_start.b.rd_start,
-		cec_regs->decode_start.b.rd_all_ack,
-		cec_regs->decode_start.b.rd_finish);
+		vppif_reg32_read(CEC_RD_START),
+		vppif_reg32_read(CEC_RD_ALL_ACK),
+		vppif_reg32_read(CEC_RD_FINISH));
 	DPRINT("rd header ack %d,EOM %d,data 0x%x\n",
-		cec_regs->decode_data[0].b.rd_data_ack,
-		cec_regs->decode_data[0].b.rd_data_eom,
-		cec_regs->decode_data[0].b.rd_data);
+		vppif_reg32_read(CEC_RD_HEADER_ACK),
+		vppif_reg32_read(CEC_RD_HEADER_ACK),
+		vppif_reg32_read(CEC_RD_HEADER_DATA));
 	DPRINT("rd data ack %d,EOM %d,data 0x%x\n",
-		cec_regs->decode_data[1].b.rd_data_ack,
-		cec_regs->decode_data[1].b.rd_data_eom,
-		cec_regs->decode_data[1].b.rd_data);
+		vppif_reg32_read(CEC_RD_DATA_ACK),
+		vppif_reg32_read(CEC_RD_DATA_EOM),
+		vppif_reg32_read(CEC_RD_DATA));
 
 	DPRINT("---------- Logical addr ----------\n");
 	DPRINT("addr1 0x%x,valid %d\n",
-		cec_regs->logical_addr.b.addr1,
-		cec_regs->logical_addr.b.valid1);
+		vppif_reg32_read(CEC_LOGICAL_ADDR1),
+		vppif_reg32_read(CEC_ADDR_VALID1));
 	DPRINT("addr2 0x%x,valid %d\n",
-		cec_regs->logical_addr.b.addr2,
-		cec_regs->logical_addr.b.valid2);
+		vppif_reg32_read(CEC_LOGICAL_ADDR2),
+		vppif_reg32_read(CEC_ADDR_VALID2));
 	DPRINT("addr3 0x%x,valid %d\n",
-		cec_regs->logical_addr.b.addr3,
-		cec_regs->logical_addr.b.valid3);
+		vppif_reg32_read(CEC_LOGICAL_ADDR3),
+		vppif_reg32_read(CEC_ADDR_VALID3));
 	DPRINT("addr4 0x%x,valid %d\n",
-		cec_regs->logical_addr.b.addr4,
-		cec_regs->logical_addr.b.valid4);
+		vppif_reg32_read(CEC_LOGICAL_ADDR4),
+		vppif_reg32_read(CEC_ADDR_VALID4));
 	DPRINT("addr5 0x%x,valid %d\n",
-		cec_regs->logical_addr.b.addr5,
-		cec_regs->logical_addr.b.valid5);
+		vppif_reg32_read(CEC_LOGICAL_ADDR5),
+		vppif_reg32_read(CEC_ADDR_VALID5));
 
 	DPRINT("---------- Misc ----------\n");
-	DPRINT("free 3x %d,5x %d,7x %d\n",
-		cec_regs->free_3x.b.free_3x, cec_regs->free_3x.b.free_5x,
-		cec_regs->free_3x.b.free_7x);
+	DPRINT("free 3x %d,5x %d,7x %d\n", vppif_reg32_read(CEC_FREE_3X),
+		vppif_reg32_read(CEC_FREE_5X), vppif_reg32_read(CEC_FREE_7X));
 	DPRINT("reject next decode %d,comp disable %d\n",
-		cec_regs->reject.b.next_decode, cec_regs->comp.b.disable);
+		vppif_reg32_read(CEC_REJECT_NEXT_DECODE),
+		vppif_reg32_read(CEC_COMP_DISABLE));
 	DPRINT("err handle disable %d,no ack disable %d\n",
-		cec_regs->handle_disable.b.err,
-		cec_regs->handle_disable.b.no_ack);
+		vppif_reg32_read(CEC_ERR_HANDLE_DISABLE),
+		vppif_reg32_read(CEC_NO_ACK_DISABLE));
 	DPRINT("r1 enc ok %d,r1 dec ok %d,r1 err %d\n",
-		cec_regs->status.b.r1_encode_ok,
-		cec_regs->status.b.r1_decode_ok,
-		cec_regs->status.b.r1_error);
+		vppif_reg32_read(CEC_R1_ENCODE_OK),
+		vppif_reg32_read(CEC_R1_DECODE_OK),
+		vppif_reg32_read(CEC_R1_ERROR));
 	DPRINT("r1 arb fail %d,r1 no ack %d\n",
-		cec_regs->status.b.r1_arb_fail,
-		cec_regs->status.b.r1_no_ack);
+		vppif_reg32_read(CEC_R1_ARB_FAIL),
+		vppif_reg32_read(CEC_R1_NO_ACK));
 	DPRINT("dec full disable %d,self rd enable %d\n",
-		cec_regs->decode_full.b.disable,
-		cec_regs->rd_encode.b.enable);
+		vppif_reg32_read(CEC_DECODE_FULL_DISABLE),
+		vppif_reg32_read(CEC_RD_ENCODE_ENABLE));
 }
 
 #ifdef CONFIG_PM
@@ -311,7 +301,7 @@ void wmt_cec_do_suspend(void)
 
 void wmt_cec_do_resume(void)
 {
-	vppm_regs->sw_reset2.val = 0x1011111;
+	vppif_reg32_out(REG_VPP_SWRST2_SEL, 0x1011111);
 	/* disable GPIO function */
 	vppif_reg32_write(GPIO_BASE_ADDR + 0x40, BIT4, 4, 0);
 	/* GPIO4 disable GPIO out */

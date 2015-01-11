@@ -30,7 +30,6 @@
 #include <linux/netlink.h>
 #include <net/sock.h>
 #include "cec.h"
-#include "vpp.h"
 
 #define DRIVER_NAME "wmt-cec"
 
@@ -320,7 +319,7 @@ static ssize_t wmt_cec_write(
 	return ret;
 } /* End of videodecoder_write() */
 
-const struct file_operations wmt_cec_fops = {
+struct file_operations wmt_cec_fops = {
 	.owner          = THIS_MODULE,
 	.open           = wmt_cec_open,
 	.release        = wmt_cec_release,
@@ -370,7 +369,8 @@ static int __init wmt_cec_probe
 	if (vpp_request_irq(IRQ_VPP_IRQ20, wmt_cec_do_irq,
 		SA_INTERRUPT, "cec", (void *) 0))
 		DPRINT("*E* request CEC ISR fail\n");
-	cec_regs->int_enable = 0x1f;
+	vppif_reg32_out(REG_CEC_INT_ENABLE, 0x1f);
+
 	DBGMSG("[CEC] Exit wmt_cec_probe(0x%x)\n", dev_no);
 	return 0;
 } /* End of wmt_cec_probe */

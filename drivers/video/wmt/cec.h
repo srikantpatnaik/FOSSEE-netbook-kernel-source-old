@@ -23,7 +23,8 @@
 
 #include "vpp-osif.h"
 #include "./hw/wmt-vpp-hw.h"
-#include "hw/wmt-cec-reg.h"
+#include "vpp.h"
+#include "com-cec.h"
 
 #ifdef WMT_FTBLK_CEC
 
