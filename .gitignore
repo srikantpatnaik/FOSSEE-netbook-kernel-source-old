@@ -127,4 +127,6 @@ usr/gen_init_cpio
 usr/initramfs_data.cpio
 drivers/gpu/drm/Module.symvers
 drivers/video/logo/
+*.symvers
+scripts/pnmtologo
 \#*#
